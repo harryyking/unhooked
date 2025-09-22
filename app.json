@@ -1,23 +1,27 @@
 {
   "expo": {
-    "name": "unhooked",
+    "name": "Unhooked",
     "slug": "unhooked",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/unhooked-ios-icon.png",
     "scheme": "unhooked",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/splash.png",
+      "image": "./assets/images/unhooked-splash-screen.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#000000"
     },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.harryyking.unhooked",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "edgeToEdgeEnabled": true,
@@ -38,6 +42,14 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "convexUrl": "https://insightful-vulture-707.convex.cloud",
+      "clerkPublishableKey": "pk_test_ZW1pbmVudC1sZWVjaC00MC5jbGVyay5hY2NvdW50cy5kZXYk",
+      "router": {},
+      "eas": {
+        "projectId": "bd0f805e-e36c-479c-b76c-041d24e8a602"
+      }
     }
   }
 }
