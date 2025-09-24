@@ -11,16 +11,6 @@ import { Image, type ImageStyle, View, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 
-const LOGO = {
-  light: require('@/assets/images/unhooked-ios-light.png'),
-  dark: require('@/assets/images/icon.png'),
-};
-
-const LOGO_STYLE: ImageStyle = {
-  height: 36,
-  width: 40,
-};
-
 const SCREEN_OPTIONS = {
   header: () => (
     <View className="top-safe absolute left-0 right-0 flex-row justify-between px-4 py-2 web:mx-2">

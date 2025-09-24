@@ -360,7 +360,7 @@ const StreakCard: React.FC = () => {
     );
   };
 
-  const buttonText = existingLog ? 'View Log' : 'Log Today';
+  const buttonText = existingLog ? 'View Log' : 'Check in Today';
   const motivationalText = useMemo(() => {
     if (streak === 0) return "Begin your journey";
     if (streak === 1) return "One day stronger";

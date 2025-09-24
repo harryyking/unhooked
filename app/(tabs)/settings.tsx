@@ -182,7 +182,7 @@ const Settings = () => {
         {/* Header */}
         <View className="px-4 py-6 bg-background">
           <Text className="text-2xl font-bold mb-1">Settings</Text>
-          <Text className="text-muted-foreground text-base">
+          <Text className="text-muted-foreground text-sm">
             Manage your preferences and account
           </Text>
         </View>

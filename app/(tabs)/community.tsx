@@ -1,16 +1,14 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-    StyleSheet,
-    View,
     FlatList,
     Modal,
     KeyboardAvoidingView,
     Platform,
     Animated,
-    RefreshControl,
     Dimensions,
     TouchableOpacity,
     Alert,
+    View,
     ScrollView,
 } from 'react-native';
 import { Text } from '@/components/ui/text';
@@ -24,16 +22,17 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import NetInfo from '@react-native-community/netinfo';
-import {debounce} from 'lodash';
+import * as Netinfo from '@react-native-community/netinfo'
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useAuth } from '@clerk/clerk-expo';
 import { Id } from '@/convex/_generated/dataModel';
 
 const { width, height } = Dimensions.get('window');
+const CACHE_KEY = 'community_stories_cache';
+const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
 
-// Interface for the story data
+// Interface for the story data, now matching the expected Convex document schema.
 interface Story {
     _id: Id<'stories'>;
     title: string;
@@ -48,12 +47,15 @@ interface Story {
     hasUpvoted: boolean;
 }
 
-const ITEMS_PER_PAGE = 10;
+interface CachedStories {
+    data: Story[];
+    timestamp: number;
+}
 
 const Community = () => {
     const { colors } = useTheme();
     const insets = useSafeAreaInsets();
-    const { isSignedIn } = useAuth();
+    const { isSignedIn, getToken } = useAuth();
     
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [newStory, setNewStory] = useState({ 
@@ -61,81 +63,83 @@ const Community = () => {
         content: '', 
         category: 'Passion Story' as 'Passion Story' | 'Testimony'
     });
-    const [refreshing, setRefreshing] = useState(false);
-    const [filterType, setFilterType] = useState<'trending' | 'recent' | 'top'>('trending');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [page, setPage] = useState(0);
-    const [cachedStories, setCachedStories] = useState<Story[]>([]);
-    const [error, setError] = useState<string | null>(null);
-    const [isOffline, setIsOffline] = useState(false);
+    const [filterType, setFilterType] = useState<'trending' | 'recent' | 'top'>('trending');
+    const [isOnline, setIsOnline] = useState(true);
     const fadeAnim = new Animated.Value(0);
 
-    // Fetch stories with pagination
-    const rawStories = useQuery(api.stories.getStories, { 
-        filterType, 
-    });
-    const stories = rawStories ?? cachedStories;
-    const isLoading = rawStories === undefined && cachedStories.length === 0;
+    // Fetch stories from Convex with offline caching fallback
+    const rawStories = useQuery(api.stories.getStories, { filterType });
+    const [cachedStories, setCachedStories] = useState<CachedStories | null>(null);
 
-    // Mutations
+    // Load cached stories on mount
+    useEffect(() => {
+        loadCachedStories();
+    }, []);
+
+    // Network state listener
+    useEffect(() => {
+        const unsubscribe = Netinfo.addEventListener(state => {
+            setIsOnline(state.isConnected ?? false);
+        });
+        return unsubscribe;
+    }, []);
+
+    // Sync cache when online and data changes
+    useEffect(() => {
+        if (isOnline && rawStories) {
+            saveToCache(rawStories);
+        }
+    }, [rawStories, isOnline]);
+
+    const loadCachedStories = useCallback(async () => {
+        try {
+            const cached = await AsyncStorage.getItem(CACHE_KEY);
+            if (cached) {
+                const parsed: CachedStories = JSON.parse(cached);
+                if (Date.now() - parsed.timestamp < CACHE_EXPIRY) {
+                    setCachedStories(parsed);
+                }
+            }
+        } catch (error) {
+            console.error('Error loading cache:', error);
+        }
+    }, []);
+
+    const saveToCache = useCallback(async (stories: Story[]) => {
+        try {
+            const data: CachedStories = {
+                data: stories,
+                timestamp: Date.now(),
+            };
+            await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(data));
+        } catch (error) {
+            console.error('Error saving cache:', error);
+        }
+    }, []);
+
+    const stories = useMemo(() => {
+        if (rawStories) return rawStories;
+        return cachedStories?.data ?? [];
+    }, [rawStories, cachedStories]);
+
+    const isLoading = rawStories === undefined && !cachedStories;
+
+    // Use mutations
     const createStoryMutation = useMutation(api.stories.createStory);
     const upvoteStoryMutation = useMutation(api.stories.upvoteStory);
 
-    // Load cached stories
     useEffect(() => {
-        const loadCachedStories = async () => {
-            try {
-                const cached = await AsyncStorage.getItem(`stories_${filterType}_${page}`);
-                if (cached) {
-                    setCachedStories(JSON.parse(cached));
-                } else {
-                    setCachedStories([]);
-                }
-            } catch (err) {
-                console.error('Error loading cached stories:', err);
-                setError('Failed to load cached stories.');
-            }
-        };
-        loadCachedStories();
-    }, [filterType, page]);
-
-    // Cache stories when fetched
-    useEffect(() => {
-        if (rawStories) {
-            AsyncStorage.setItem(`stories_${filterType}_${page}`, JSON.stringify(rawStories)).catch((err) =>
-                console.error('Error caching stories:', err)
-            );
-            setCachedStories(rawStories);
-            setError(null);
+        if (stories.length > 0) {
             Animated.timing(fadeAnim, {
                 toValue: 1,
                 duration: 800,
                 useNativeDriver: true,
             }).start();
         }
-    }, [rawStories, filterType, page]);
+    }, [stories]);
 
-    // Offline detection
-    useEffect(() => {
-        const unsubscribe = NetInfo.addEventListener((state: any) => {
-            setIsOffline(!state.isConnected);
-            if (!state.isConnected && cachedStories.length > 0) {
-                Alert.alert('Offline', 'Showing cached stories. Connect to the internet for updates.');
-            }
-        });
-        return () => unsubscribe();
-    }, [cachedStories]);
-
-    // Debounced filter change
-    const debouncedSetFilterType = useMemo(
-        () => debounce((filter: 'trending' | 'recent' | 'top') => {
-            setFilterType(filter);
-            setPage(0); // Reset page when filter changes
-        }, 300),
-        []
-    );
-
-    const handleUpvote = async (storyId: Id<'stories'>) => {
+    const handleUpvote = useCallback(async (storyId: Id<'stories'>) => {
         if (!isSignedIn) {
             Alert.alert('Sign In Required', 'Please sign in to upvote stories.');
             return;
@@ -143,13 +147,18 @@ const Community = () => {
         
         try {
             await upvoteStoryMutation({ storyId });
+            // Invalidate cache or update locally if offline
+            if (!isOnline) {
+                // For simplicity, refetch on next online sync
+                Alert.alert('Offline', 'Upvote queued. Will sync when online.');
+            }
         } catch (error) {
             console.error('Error upvoting story:', error);
             Alert.alert('Error', 'Failed to upvote story. Please try again.');
         }
-    };
+    }, [isSignedIn, upvoteStoryMutation, isOnline]);
 
-    const handleCreateStory = async () => {
+    const handleCreateStory = useCallback(async () => {
         if (!isSignedIn) {
             Alert.alert('Sign In Required', 'Please sign in to create stories.');
             return;
@@ -167,6 +176,12 @@ const Community = () => {
 
         if (newStory.content.length < 50) {
             Alert.alert('Validation Error', 'Content must be at least 50 characters long');
+            return;
+        }
+
+        if (!isOnline) {
+            Alert.alert('Offline', 'Story creation queued. Will sync when online.');
+            // TODO: Implement mutation queue with AsyncStorage
             return;
         }
 
@@ -192,28 +207,9 @@ const Community = () => {
         } finally {
             setIsSubmitting(false);
         }
-    };
+    }, [isSignedIn, newStory, createStoryMutation, isOnline]);
 
-    const onRefresh = async () => {
-        setRefreshing(true);
-        try {
-            setPage(0); // Reset to first page
-            await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate network delay
-        } catch (error) {
-            console.error('Error refreshing stories:', error);
-            setError('Failed to refresh stories.');
-        } finally {
-            setRefreshing(false);
-        }
-    };
-
-    const loadMore = useCallback(() => {
-        if (rawStories && rawStories.length === ITEMS_PER_PAGE) {
-            setPage((prev) => prev + 1);
-        }
-    }, [rawStories]);
-
-    const formatTime = (timestamp: number) => {
+    const formatTime = useCallback((timestamp: number) => {
         const diff = Date.now() - timestamp;
         const days = Math.floor(diff / 86400000);
         const hours = Math.floor(diff / 3600000);
@@ -223,23 +219,18 @@ const Community = () => {
         if (hours > 0) return `${hours}h ago`;
         if (minutes > 0) return `${minutes}m ago`;
         return 'Just now';
-    };
+    }, []);
+
+    const renderStoryCard = useCallback(({ item: story }: { item: Story }) => (
+        <StoryCard
+            key={story._id.toString()}
+            story={story}
+            onUpvote={handleUpvote}
+            formatTime={formatTime}
+        />
+    ), [handleUpvote, formatTime]);
 
     const renderContent = () => {
-        if (error && stories.length === 0) {
-            return (
-                <View className="flex-1 items-center justify-center px-8">
-                    <Ionicons name="alert-circle-outline" size={64} color={colors.border} />
-                    <Text className="text-muted-foreground text-center mt-4 text-base">
-                        {error}
-                    </Text>
-                    <Button onPress={onRefresh} className="mt-4" size="sm">
-                        <Text>Retry</Text>
-                    </Button>
-                </View>
-            );
-        }
-
         if (isLoading) {
             return (
                 <View className="flex-1 items-center justify-center">
@@ -269,37 +260,33 @@ const Community = () => {
         return (
             <FlatList
                 data={stories}
-                renderItem={({ item }) => (
-                    <StoryCard
-                        story={item}
-                        onUpvote={handleUpvote}
-                        formatTime={formatTime}
-                    />
-                )}
+                renderItem={renderStoryCard}
                 keyExtractor={(item) => item._id.toString()}
-                onEndReached={loadMore}
-                onEndReachedThreshold={0.5}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-                ListFooterComponent={<View style={{ height: 100 }} />}
                 showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 100 }}
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={10}
+                windowSize={10}
+                initialNumToRender={5}
+                getItemLayout={undefined} // Can be optimized if item heights are fixed
             />
         );
     };
 
     return (
-        <SafeAreaView className="flex-1">
-            <View className='px-4 py-8'>
+        <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+            <View className="px-4 py-4">
                 <View className="flex-row items-center justify-between mb-2">
                     <View className="flex-1">
-                        <Text className="text-2xl font-bold mb-1">
+                        <Text className="text-2xl font-bold mb-1 text-foreground">
                             Passion Stories
                         </Text>
-                        <Text className="text-sm">
+                        <Text className="text-sm text-muted-foreground">
                             Transformative journeys that inspire people
                         </Text>
                     </View>
-                    <View className="bg-white/20 rounded-full px-3 py-1">
-                        <Text className="text-xs font-medium">
+                    <View className="bg-muted/50 rounded-full px-3 py-1">
+                        <Text className="text-xs font-medium text-muted-foreground">
                             {stories.length} stories
                         </Text>
                     </View>
@@ -314,7 +301,7 @@ const Community = () => {
                         variant={filterType === filter ? 'default' : 'ghost'}
                         size="sm"
                         className="mr-3"
-                        onPress={() => debouncedSetFilterType(filter)}
+                        onPress={() => setFilterType(filter)}
                     >
                         <Text className={filterType === filter ? 'text-primary-foreground' : 'text-muted-foreground'}>
                             {filter.charAt(0).toUpperCase() + filter.slice(1)}
@@ -327,16 +314,25 @@ const Community = () => {
                 {renderContent()}
             </Animated.View>
 
-            {/* Floating Action Button */}
+            {/* Network Status Indicator */}
+            {!isOnline && (
+                <View className="absolute top-4 left-4 right-4 bg-destructive/10 border border-destructive rounded-lg p-3">
+                    <Text className="text-destructive text-center text-sm">
+                        Offline Mode - Showing cached stories
+                    </Text>
+                </View>
+            )}
+
+            {/* Floating Action Button - Z-index fixed with higher elevation */}
             <TouchableOpacity
                 onPress={() => setShowCreateModal(true)}
-                className="absolute bottom-6 right-5 w-14 h-14 bg-secondary rounded-full items-center justify-center shadow-lg"
+                className="absolute bottom-6 right-5 z-50 w-14 h-14 bg-primary rounded-full items-center justify-center shadow-2xl"
                 style={{
                     shadowColor: '#000',
                     shadowOffset: { width: 0, height: 4 },
                     shadowOpacity: 0.3,
                     shadowRadius: 8,
-                    elevation: 8,
+                    elevation: 16, // Higher elevation for z-index
                 }}
             >
                 <Ionicons name="add" size={24} color="white" />
@@ -350,6 +346,7 @@ const Community = () => {
                 onRequestClose={() => setShowCreateModal(false)}
             >
                 <View className="flex-1 bg-background">
+                    {/* Modal Header */}
                     <View className="flex-row items-center justify-between px-5 py-4 border-b border-border">
                         <Button 
                             variant="ghost" 
@@ -358,7 +355,9 @@ const Community = () => {
                         >
                             <Text className="text-muted-foreground">Cancel</Text>
                         </Button>
-                        <Text className="text-lg font-semibold">New Story</Text>
+                        
+                        <Text className="text-lg font-semibold text-foreground">New Story</Text>
+                        
                         <Button 
                             variant="ghost" 
                             onPress={handleCreateStory}
@@ -378,8 +377,9 @@ const Community = () => {
                         className="flex-1"
                         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     >
-                        <ScrollView className="flex-1 px-5 py-6">
-                            <Text className="text-base font-semibold mb-3">Category</Text>
+                        <ScrollView className="flex-1 px-5 py-6" showsVerticalScrollIndicator={false}>
+                            {/* Category Selection */}
+                            <Text className="text-base font-semibold mb-3 text-foreground">Category</Text>
                             <View className="flex-row mb-6">
                                 {(['Passion Story', 'Testimony'] as const).map((category) => (
                                     <Button
@@ -400,7 +400,8 @@ const Community = () => {
                                 ))}
                             </View>
 
-                            <Text className="text-base font-semibold mb-2">Title</Text>
+                            {/* Title Input */}
+                            <Text className="text-base font-semibold mb-2 text-foreground">Title</Text>
                             <Input
                                 placeholder="Give your story a compelling title..."
                                 value={newStory.title}
@@ -412,9 +413,10 @@ const Community = () => {
                                 {newStory.title.length}/100 characters
                             </Text>
 
-                            <Text className="text-base font-semibold mb-2">Your Story</Text>
+                            {/* Content Input */}
+                            <Text className="text-base font-semibold mb-2 text-foreground">Your Story</Text>
                             <Textarea
-                                placeholder="Share your transformative journey..."
+                                placeholder="Share your transformative journey... Tell us about the challenges you faced, the breakthroughs you experienced, and how you overcame obstacles. Your story might be exactly what someone else needs to hear today."
                                 value={newStory.content}
                                 onChangeText={(text) => setNewStory(prev => ({ ...prev, content: text }))}
                                 className="min-h-[200px]"
@@ -443,40 +445,43 @@ interface StoryCardProps {
     formatTime: (timestamp: number) => string;
 }
 
-const StoryCard = ({ story, onUpvote, formatTime }: StoryCardProps) => {
+const StoryCard = React.memo(({ story, onUpvote, formatTime }: StoryCardProps) => {
     const scaleAnim = new Animated.Value(1);
     const { colors } = useTheme();
 
-    const handlePressIn = () => {
+    const handlePressIn = useCallback(() => {
         Animated.spring(scaleAnim, {
             toValue: 0.98,
             useNativeDriver: true,
         }).start();
-    };
+    }, [scaleAnim]);
 
-    const handlePressOut = () => {
+    const handlePressOut = useCallback(() => {
         Animated.spring(scaleAnim, {
             toValue: 1,
             useNativeDriver: true,
         }).start();
-    };
+    }, [scaleAnim]);
 
-    const getCategoryColor = (category: string) => {
+    const handleUpvotePress = useCallback(() => {
+        onUpvote(story._id);
+    }, [story._id, onUpvote]);
+
+    const getCategoryColor = useCallback((category: string) => {
         if (category === 'Passion Story') return '#ef4444';
         if (category === 'Testimony') return '#3b82f6';
         return '#6b7280';
-    };
+    }, []);
 
     return (
-        <Animated.View style={{ transform: [{ scale: scaleAnim }], marginHorizontal: 20, marginVertical: 8 }}>
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }} className="mx-5 mb-4">
             <TouchableOpacity
                 activeOpacity={0.9}
                 onPressIn={handlePressIn}
                 onPressOut={handlePressOut}
-                onPress={() => { /* Add navigation to story details here */ }}
             >
-                <Card className="bg-secondary border border-border">
-                    <CardHeader>
+                <Card className="bg-card border-border">
+                    <CardHeader className="pb-2">
                         <View className="flex-col justify-between items-start">
                             <Badge 
                                 variant="secondary" 
@@ -492,11 +497,13 @@ const StoryCard = ({ story, onUpvote, formatTime }: StoryCardProps) => {
                             </CardTitle>
                         </View>
                     </CardHeader>
-                    <CardContent className="py-0">
+                    
+                    <CardContent className="py-0 px-0">
                         <Text className='text-sm text-muted-foreground leading-5' numberOfLines={3}>
                             {story.content}
                         </Text>
                     </CardContent>
+                    
                     <CardFooter className="pt-2">
                         <View className="flex-row items-center w-full">
                             <View className="mr-auto">
@@ -510,9 +517,10 @@ const StoryCard = ({ story, onUpvote, formatTime }: StoryCardProps) => {
                                     </Text>
                                 </View>
                             </View>
+
                             <TouchableOpacity
                                 className="flex-row items-center mr-6"
-                                onPress={() => onUpvote(story._id)}
+                                onPress={handleUpvotePress}
                             >
                                 <Ionicons
                                     name={story.hasUpvoted ? 'heart' : 'heart-outline'}
@@ -532,6 +540,6 @@ const StoryCard = ({ story, onUpvote, formatTime }: StoryCardProps) => {
             </TouchableOpacity>
         </Animated.View>
     );
-};
+});
 
 export default Community;

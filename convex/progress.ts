@@ -93,8 +93,8 @@ export const getByDate = query({
     if (!identity) {
       return null;
     }
-    const userId = identity.subject as Id<"users">;
-
+    const userId = await getUserByTokenIdentifier(ctx, identity.subject)
+    if(!userId) throw new Error('UserId not found')
     return await ctx.db
       .query("progress")
       .withIndex("by_userId_logDate", (q) =>
@@ -114,7 +114,8 @@ export const getWeeklyLogs = query({
     if (!identity) {
       return [];
     }
-    const userId = identity.subject as Id<"users">;
+    const userId = await getUserByTokenIdentifier(ctx, identity.subject)
+    if(!userId) throw new Error('UserId not found')
 
     // Get all logs for the user within the date range
     const logs = await Promise.all(
@@ -182,8 +183,9 @@ export const getRecentProgress = query({
     if (!identity) {
       return [];
     }
+    const userId = await getUserByTokenIdentifier(ctx, identity.subject)
+    if(!userId) throw new Error('UserId not found')
 
-    const userId = identity.subject as Id<"users">;
 
     return await ctx.db
       .query("progress")
@@ -203,7 +205,8 @@ export const getLongestStreak = query({
       return { longestStreak: 0 };
     }
 
-    const userId = identity.subject as Id<"users">;
+    const userId = await getUserByTokenIdentifier(ctx, identity.subject)
+    if(!userId) throw new Error('UserId not found')
 
     const allLogs = await ctx.db
       .query("progress")
@@ -237,7 +240,8 @@ export const getStats = query({
       };
     }
 
-    const userId = identity.subject as Id<"users">;
+     const userId = await getUserByTokenIdentifier(ctx, identity.subject)
+    if(!userId) throw new Error('UserId not found')
 
     const allLogs = await ctx.db
       .query("progress")
