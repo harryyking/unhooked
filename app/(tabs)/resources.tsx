@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import {
   FlatList,
-  Text,
   TouchableOpacity,
   View,
   Animated,
@@ -11,7 +10,8 @@ import {
   Dimensions,
   ActivityIndicator,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Text } from '@/components/ui/text';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
 import { useQuery } from 'convex/react';
 import { Audio } from 'expo-av';
@@ -395,13 +395,6 @@ const Resources = () => {
     const isCurrentTrack = audioState.currentTrack === item._id;
     const isPlaying = isCurrentTrack && audioState.isPlaying;
 
-    const handleShowDescription = () => {
-      console.log("Show description for:", item.title);
-      // In your parent component:
-      // setSelectedItemForDescription(item);
-      // setDescriptionModalVisible(true);
-    };
-
     return (
       <TouchableOpacity
         onPress={() => playAudio(item)}
@@ -422,7 +415,7 @@ const Resources = () => {
           />
         )}
 
-        <View style={{ padding: 16 }}>
+        <View style={{ padding: 16 }} className='bg-secondary border border-border'>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View 
               style={{ 
@@ -496,26 +489,20 @@ const Resources = () => {
   }
 
   return (
-    <View className="flex-1">
+    <SafeAreaView className="flex-1">
       <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
-
-      <LinearGradient
-        colors={['#FF4000', 'rgba(0, 70, 255, 1)']}
-        style={{ paddingTop: insets.top }}
-      >
-        <View className="px-4 py-10">
+        <View className="px-4 py-8">
           <View className="flex-row items-center justify-between mb-4">
             <View>
-              <Text className="text-2xl font-bold mb-1" style={{ color: '#fff' }}>
+              <Text className="text-2xl font-bold mb-1">
                 Podcast with KK Baidoo
               </Text>
-              <Text className="text-muted-foreground text-sm" style={{ color: '#fff' }}>
+              <Text className="text-muted-foreground text-sm">
                 {resources.length} episodes
               </Text>
             </View>
           </View>
         </View>
-      </LinearGradient>
 
       <MiniPlayer
         audioState={audioState}
@@ -536,7 +523,7 @@ const Resources = () => {
         data={resources}
         renderItem={renderResource}
         keyExtractor={(item) => item._id}
-        className="flex-1 mt-8 mx-4"
+        className="flex-1 mx-4"
         contentContainerStyle={{ 
           paddingTop: 8, 
           paddingBottom: audioState.currentTrack ? 200 : insets.bottom + 20 
@@ -554,7 +541,7 @@ const Resources = () => {
         maxToRenderPerBatch={10}
         windowSize={10}
       />
-    </View>
+    </SafeAreaView>
   );
 };
 

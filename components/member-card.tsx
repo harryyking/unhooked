@@ -149,8 +149,8 @@ const MemberCard: React.FC = () => {
         ]).start();
       });
     } catch (error: any) {
-      setError(error?.message || "Failed to redeem invite code");
-      Alert.alert("Redemption Failed", error?.message || "Please try again");
+      setError("Failed to redeem invite code");
+      Alert.alert("Redemption Failed",  "Please try again");
       
       Animated.sequence([
         Animated.timing(slideAnim, { toValue: 0.95, duration: 100, useNativeDriver: true }),
@@ -164,7 +164,7 @@ const MemberCard: React.FC = () => {
   };
 
   const formatCode = (text: string) => {
-    return text.toUpperCase().replace(/(.{2})/g, '$1 ').trim();
+    return text.toUpperCase().replace(/(.{4})/g, '$1 ').trim();
   };
 
   const handleCodeChange = (text: string) => {
@@ -424,7 +424,7 @@ const MemberCard: React.FC = () => {
                       maxLength={11}
                       autoCapitalize="characters"
                       editable={!isSubmitting}
-                      className={`text-center text-lg font-mono tracking-widest py-4 ${
+                      className={`text-center font-mono tracking-widest ${
                         error ? 'border-red-300 bg-red-50' : 'border-border bg-muted/30'
                       }`}
                       autoCorrect={false}

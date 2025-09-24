@@ -34,16 +34,6 @@ export default function Screen() {
   const { colorScheme } = useColorScheme();
   const { user } = useUser();
 
-  const gradientColors = colorScheme === 'dark' 
-    ? ['#1a1a2e', '#16213e', '#0f3460'] 
-    : ['#fff5f0', '#f0f8ff', '#e6f3ff'];
-
-  const benefits = [
-    "Personalized recovery plan",
-    "Track your progress daily", 
-    "Connect with support community",
-    "Science-based approach"
-  ];
 
   return (
     <View style={{ flex: 1 }}>
@@ -60,7 +50,7 @@ export default function Screen() {
             {/* Title */}
             <Text 
               variant="h1" 
-              className="mb-4 text-left font-bold text-7xl text"
+              className="mb-4 text-left font-semibold text-7xl text"
             >
               Ready to Flee From Porn?
             </Text>

@@ -7,7 +7,8 @@ import { Input } from './ui/input';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import { Ionicons } from '@expo/vector-icons';
-import Svg, { Circle, Text as SvgText, G } from 'react-native-svg';
+import Svg, { Circle, Text as SvgText, G, Line } from 'react-native-svg';
+import { Textarea } from './ui/textarea';
 
 interface Answers {
   clean: boolean | null;
@@ -39,7 +40,7 @@ const StreakCard: React.FC = () => {
   const existingLog = useQuery(api.progress.getByDate, { logDate: today });
   const logCheckin = useMutation(api.progress.logDailyCheckin);
 
-  // Get week's data for circular view
+  // Get week's data for horizontal progress bar
   const weekDates = useMemo(() => {
     const dates = [];
     const now = new Date();
@@ -78,43 +79,43 @@ const StreakCard: React.FC = () => {
   const questions = [
     { 
       id: 'clean', 
-      question: '🎯 Be honest: Did you stay clean today?', 
+      question: 'Did you stay clean today?', 
       type: 'yesno',
-      subtitle: 'Honesty helps you grow stronger'
+      subtitle: 'Be honest with yourself'
     },
     { 
       id: 'mood', 
-      question: '😊 How was your mood today?', 
+      question: 'How are you feeling?', 
       type: 'select', 
       options: [
-        { label: 'Joyful', emoji: '😄' },
-        { label: 'Hopeful', emoji: '😊' },
-        { label: 'Tempted', emoji: '😐' },
+        { label: 'Joyful', emoji: '😊' },
+        { label: 'Hopeful', emoji: '🌟' },
+        { label: 'Tempted', emoji: '⚠️' },
         { label: 'Struggling', emoji: '😔' },
-        { label: 'Peaceful', emoji: '😌' }
+        { label: 'Peaceful', emoji: '🕊️' }
       ],
-      subtitle: 'Understanding your emotions is key'
+      subtitle: 'Reflect on your emotions'
     },
     { 
       id: 'triggers', 
-      question: '⚠️ Did you encounter any triggers?', 
+      question: 'Any triggers today?', 
       type: 'text',
-      subtitle: 'Separate multiple triggers with commas',
-      placeholder: 'e.g. stress, social media, boredom'
+      subtitle: 'List them to build awareness',
+      placeholder: 'e.g., stress, loneliness'
     },
     { 
       id: 'journal', 
-      question: '📝 Any thoughts or reflections?', 
+      question: 'Quick reflection', 
       type: 'text',
-      subtitle: 'Share what\'s on your mind today',
-      placeholder: 'How are you feeling? What went well? What was challenging?'
+      subtitle: 'What\'s on your mind?',
+      placeholder: 'One win, one lesson learned'
     },
   ] as const;
 
   const handleAnswer = (key: keyof Answers, value: any) => {
     setAnswers((prev) => ({ ...prev, [key]: value }));
     if (key !== 'triggers' && key !== 'journal') {
-      setTimeout(() => setStep((prev) => prev + 1), 300);
+      setTimeout(() => setStep((prev) => prev + 1), 200);
     }
   };
 
@@ -144,7 +145,7 @@ const StreakCard: React.FC = () => {
           triggers: '',
           journal: '',
         });
-      }, 3000);
+      }, 2500);
     } catch (error) {
       console.error('Failed to submit check-in:', error);
     }
@@ -164,154 +165,81 @@ const StreakCard: React.FC = () => {
   };
 
   const renderProgressBar = () => (
-    <View className="px-6 py-4 bg-background">
-      <View className="h-2 bg-muted rounded-full overflow-hidden">
+    <View className="px-6 py-3 bg-background border-b border-border">
+      <View className="h-1.5 bg-muted rounded-full overflow-hidden">
         <View 
-          className="h-full bg-primary rounded-full transition-all duration-300"
+          className="h-full bg-primary rounded-full"
           style={{ width: `${((step + 1) / questions.length) * 100}%` }}
         />
       </View>
-      <Text className="text-center text-sm text-muted-foreground mt-2">
+      <Text className="text-center text-xs text-muted-foreground mt-1.5">
         Step {step + 1} of {questions.length}
       </Text>
     </View>
   );
 
-  const renderWeeklyCircle = () => {
-    const centerX = 120;
-    const centerY = 120;
-    const radius = 85; // Increased from 70
-    const itemRadius = 12;
+  const renderWeeklyBar = () => {
+    const dayWidth = screenWidth / 8; // 7 days + margin
+    const barHeight = 20;
 
     return (
-      <View className="items-center mb-6">
-        <Svg height="240" width="240" viewBox="0 0 240 240">
-          {/* Background circle */}
-          <Circle
-            cx={centerX}
-            cy={centerY}
-            r={radius}
-            fill="none"
-            stroke="#e5e7eb"
-            strokeWidth="2"
-            strokeDasharray="5,5"
-          />
-          
+      <View className="mb-6">
+        <Text className="text-center text-sm font-medium text-foreground mb-3">
+          This Week's Progress
+        </Text>
+        <View className="flex-row justify-between items-center px-4">
           {weeklyProgress.map((day, index) => {
-            const angle = (index * 360 / 7) - 90; // Start from top
-            const radian = (angle * Math.PI) / 180;
-            const x = centerX + radius * Math.cos(radian);
-            const y = centerY + radius * Math.sin(radian);
-            
-            let fillColor = '#f3f4f6'; // Default gray
-            let strokeColor = '#d1d5db';
+            const isToday = day.date === today;
+            let bgColor = 'bg-muted';
+            let borderColor = 'border-border';
             
             if (day.logged) {
               if (day.clean === true) {
-                fillColor = '#10b981'; // Green for clean days
-                strokeColor = '#059669';
+                bgColor = 'bg-green-500';
+                borderColor = 'border-green-600';
               } else if (day.clean === false) {
-                fillColor = '#ef4444'; // Red for relapses
-                strokeColor = '#dc2626';
+                bgColor = 'bg-red-500';
+                borderColor = 'border-red-600';
               }
-            } else if (day.date === today) {
-              fillColor = '#3b82f6'; // Blue for today if not logged
-              strokeColor = '#2563eb';
+            } else if (isToday) {
+              bgColor = 'bg-blue-500';
+              borderColor = 'border-blue-600';
             }
-            
+
             const dayName = new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' });
             
             return (
-              <G key={day.date}>
-                <Circle
-                  cx={x}
-                  cy={y}
-                  r={itemRadius}
-                  fill={fillColor}
-                  stroke={strokeColor}
-                  strokeWidth="2"
+              <View key={day.date} className="items-center">
+                <View
+                  className={`w-${Math.floor(dayWidth)} h-${barHeight} rounded-full border-2 ${bgColor} ${borderColor}`}
+                  style={{ width: dayWidth - 10 }}
                 />
-                {day.logged && day.clean === true && (
-                  <SvgText
-                    x={x}
-                    y={y + 1}
-                    textAnchor="middle"
-                    fontSize="12"
-                    fill="white"
-                    fontWeight="bold"
-                  >
-                    ✓
-                  </SvgText>
-                )}
-                {day.logged && day.clean === false && (
-                  <SvgText
-                    x={x}
-                    y={y + 1}
-                    textAnchor="middle"
-                    fontSize="12"
-                    fill="white"
-                    fontWeight="bold"
-                  >
-                    ✕
-                  </SvgText>
-                )}
-                <SvgText
-                  x={x}
-                  y={y + itemRadius + 16}
-                  textAnchor="middle"
-                  fontSize="10"
-                  fill="#6b7280"
-                >
+                <Text className="text-xs text-muted-foreground mt-1 text-center" style={{ width: dayWidth }}>
                   {dayName}
-                </SvgText>
-              </G>
+                </Text>
+                {day.logged && (
+                  <Text className="text-xs font-medium mt-0.5">
+                    {day.clean ? '✓' : '✕'}
+                  </Text>
+                )}
+              </View>
             );
           })}
-          
-          {/* Center streak number - Made larger */}
-          <Circle
-            cx={centerX}
-            cy={centerY}
-            r="45" // Increased from 30
-            fill="#f8fafc"
-            stroke="#e2e8f0"
-            strokeWidth="2"
-          />
-          <SvgText
-            x={centerX}
-            y={centerY - 5} // Adjusted position
-            textAnchor="middle"
-            fontSize="28" // Increased from 20
-            fill="#1e293b"
-            fontWeight="bold"
-          >
-            {streak}
-          </SvgText>
-          <SvgText
-            x={centerX}
-            y={centerY + 15} // Adjusted position
-            textAnchor="middle"
-            fontSize="12" // Increased from 10
-            fill="#64748b"
-            fontWeight="500"
-          >
-            DAYS
-          </SvgText>
-        </Svg>
+        </View>
         
         {/* Legend */}
-        <View className="flex-row justify-center gap-6 mt-4">
+        <View className="flex-row justify-center gap-8 mt-4">
           <View className="flex-row items-center gap-2">
-            <View className="w-3 h-3 bg-green-500 rounded-full" />
-            <Text className="text-sm text-muted-foreground">Clean</Text>
+            <View className="w-3 h-3 bg-green-500 rounded-full border border-green-600" />
+            <Text className="text-xs text-muted-foreground">Clean</Text>
           </View>
           <View className="flex-row items-center gap-2">
-            <View className="w-3 h-3 bg-red-500 rounded-full" />
-            <Text className="text-sm text-muted-foreground">Relapse</Text>
+            <View className="w-3 h-3 bg-red-500 rounded-full border border-red-600" />
+            <Text className="text-xs text-muted-foreground">Relapse</Text>
           </View>
           <View className="flex-row items-center gap-2">
-            <View className="w-3 h-3 bg-gray-300 rounded-full" />
-            <Text className="text-sm text-muted-foreground">Not logged</Text>
+            <View className="w-3 h-3 bg-blue-500 rounded-full border border-blue-600" />
+            <Text className="text-xs text-muted-foreground">Today</Text>
           </View>
         </View>
       </View>
@@ -321,22 +249,22 @@ const StreakCard: React.FC = () => {
   const renderQuestion = () => {
     if (step >= questions.length) {
       return (
-        <View className="flex-1 justify-center items-center px-6">
-          <Text className="text-6xl mb-6">🎉</Text>
-          <Text variant="h2" className="mb-3 text-center">
-            Thanks for checking in!
+        <View className="flex-1 justify-center items-center px-6 py-8">
+          <Ionicons name="checkmark-circle" size={64} color="#10b981" className="mb-4" />
+          <Text variant="h3" className="mb-3 text-center">
+            Check-in Complete
           </Text>
-          <Text className="text-center text-muted-foreground mb-4">
-            Your progress has been saved
+          <Text className="text-center text-muted-foreground mb-6">
+            Your progress is saved. Keep going.
           </Text>
           {answers.clean && (
-            <Text className="text-center text-green-600 font-semibold">
-              Great job staying clean today! 💪
+            <Text className="text-center text-green-600 font-medium mb-4">
+              Strong day! 💪
             </Text>
           )}
           {answers.clean === false && (
-            <Text className="text-center text-orange-600 font-semibold">
-              Tomorrow is a new opportunity 🌅
+            <Text className="text-center text-orange-600 font-medium mb-4">
+              Fresh start tomorrow.
             </Text>
           )}
         </View>
@@ -345,143 +273,123 @@ const StreakCard: React.FC = () => {
 
     const q = questions[step];
     return (
-      <ScrollView className="flex-1 px-6" showsVerticalScrollIndicator={false}>
-        <View className="py-8">
-          <Text variant="h3" className="text-center mb-2">
-            {q.question}
+      <ScrollView className="flex-1 px-6" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 32 }}>
+        <Text variant="h4" className="text-center mb-2">
+          {q.question}
+        </Text>
+        {q.subtitle && (
+          <Text className="text-center text-muted-foreground mb-8 text-sm">
+            {q.subtitle}
           </Text>
-          {q.subtitle && (
-            <Text className="text-center text-muted-foreground mb-8">
-              {q.subtitle}
-            </Text>
-          )}
-          
-          {q.type === 'yesno' && (
-            <View className="flex-row justify-between gap-4 mb-6">
+        )}
+        
+        {q.type === 'yesno' && (
+          <View className="flex-row justify-between gap-4 mb-8">
+            <Card className={`flex-1 ${answers.clean === true ? 'border-green-500 bg-green-50/50' : 'border-border'}`}>
+              <TouchableOpacity onPress={() => handleAnswer('clean', true)} activeOpacity={0.8}>
+                <CardContent className="py-6 items-center">
+                  <Ionicons name="checkmark-circle" size={24} color="#10b981" className="mb-2" />
+                  <Text className="font-medium">Yes</Text>
+                  <Text className="text-xs text-muted-foreground">Clean day</Text>
+                </CardContent>
+              </TouchableOpacity>
+            </Card>
+            
+            <Card className={`flex-1 ${answers.clean === false ? 'border-red-500 bg-red-50/50' : 'border-border'}`}>
+              <TouchableOpacity onPress={() => handleAnswer('clean', false)} activeOpacity={0.8}>
+                <CardContent className="py-6 items-center">
+                  <Ionicons name="close-circle" size={24} color="#ef4444" className="mb-2" />
+                  <Text className="font-medium">No</Text>
+                  <Text className="text-xs text-muted-foreground">Be kind to yourself</Text>
+                </CardContent>
+              </TouchableOpacity>
+            </Card>
+          </View>
+        )}
+        
+        {q.type === 'select' && (
+          <View className="gap-3 mb-8">
+            {q.options?.map((option) => (
               <Card 
-                className={`flex-1 transition-all duration-200 ${
-                  answers.clean === true 
-                    ? 'border-green-500 bg-green-50 shadow-lg' 
-                    : 'border-border'
-                }`}
+                key={option.label}
+                className={`p-0 ${answers.mood === option.label ? 'border-primary bg-primary/5' : 'border-border'}`}
               >
                 <TouchableOpacity 
-                  onPress={() => handleAnswer('clean', true)}
-                  activeOpacity={0.7}
+                  onPress={() => handleAnswer('mood', option.label)}
+                  activeOpacity={0.8}
+                  className="p-4 flex-row items-center justify-between"
                 >
-                  <CardContent className="py-6 items-center">
-                    <Text className="text-xl font-semibold mb-1">✅ Yes</Text>
-                    <Text className="text-sm text-muted-foreground">Stay strong!</Text>
-                  </CardContent>
+                  <View className="flex-row items-center gap-3">
+                    <Text className="text-2xl">{option.emoji}</Text>
+                    <Text className="font-medium">{option.label}</Text>
+                  </View>
+                  {answers.mood === option.label && (
+                    <Ionicons name="checkmark" size={20} color="#3b82f6" />
+                  )}
                 </TouchableOpacity>
               </Card>
-              
-              <Card 
-                className={`flex-1 transition-all duration-200 ${
-                  answers.clean === false 
-                    ? 'border-red-500 bg-red-50 shadow-lg' 
-                    : 'border-border'
-                }`}
-              >
-                <TouchableOpacity 
-                  onPress={() => handleAnswer('clean', false)}
-                  activeOpacity={0.7}
-                >
-                  <CardContent className="py-6 items-center">
-                    <Text className="text-xl font-semibold mb-1">❌ No</Text>
-                    <Text className="text-sm text-muted-foreground">Tomorrow's new</Text>
-                  </CardContent>
-                </TouchableOpacity>
-              </Card>
+            ))}
+          </View>
+        )}
+        
+        {q.type === 'text' && (
+          <View className="gap-6">
+            <Textarea
+              value={answers[q.id as keyof Answers] as string}
+              onChangeText={(text) => setAnswers((prev) => ({ ...prev, [q.id]: text }))}
+              placeholder={q.placeholder}
+              multiline={q.id === 'journal'}
+              className={`text-base ${q.id === 'journal' ? 'min-h-24' : ''}`}
+              textAlignVertical={q.id === 'journal' ? 'top' : undefined}
+            />
+            
+            <View className="items-center">
+              {step < questions.length - 1 ? (
+                <Button onPress={handleNext} size="lg" className="px-12">
+                  <Text className="font-medium">Next</Text>
+                </Button>
+              ) : (
+                <Button onPress={handleSubmit} size="lg" className="px-12">
+                  <Text className="font-medium">Submit</Text>
+                </Button>
+              )}
             </View>
-          )}
-          
-          {q.type === 'select' && (
-            <View className="gap-3 mb-6">
-              {q.options?.map((option) => (
-                <Card 
-                  key={option.label}
-                  className={`transition-all duration-200 ${
-                    answers.mood === option.label 
-                      ? 'border-primary bg-primary/5 shadow-md' 
-                      : 'border-border'
-                  }`}
-                >
-                  <TouchableOpacity 
-                    onPress={() => handleAnswer('mood', option.label)}
-                    activeOpacity={0.7}
-                  >
-                    <CardContent className="py-4 px-6 flex-row items-center">
-                      <Text className="text-2xl mr-4">{option.emoji}</Text>
-                      <Text className="text-lg font-medium">{option.label}</Text>
-                      {answers.mood === option.label && (
-                        <View className="ml-auto">
-                          <Ionicons name="checkmark-circle" size={20} color="#3b82f6" />
-                        </View>
-                      )}
-                    </CardContent>
-                  </TouchableOpacity>
-                </Card>
-              ))}
-            </View>
-          )}
-          
-          {q.type === 'text' && (
-            <View className="gap-6">
-              <Input
-                value={answers[q.id as keyof Answers] as string}
-                onChangeText={(text) => setAnswers((prev) => ({ ...prev, [q.id]: text }))}
-                placeholder={q.placeholder}
-                multiline={q.id === 'journal'}
-                className={q.id === 'journal' ? 'min-h-32 text-base' : 'text-base'}
-                textAlignVertical={q.id === 'journal' ? 'top' : 'center'}
-              />
-              
-              <View className="items-center">
-                {step < questions.length - 1 ? (
-                  <Button onPress={handleNext} size="lg" className="px-8">
-                    <Text>Next →</Text>
-                  </Button>
-                ) : (
-                  <Button onPress={handleSubmit} size="lg" className="px-8">
-                    <Text>Complete Check-in ✨</Text>
-                  </Button>
-                )}
-              </View>
-            </View>
-          )}
-        </View>
+          </View>
+        )}
       </ScrollView>
     );
   };
 
-  const buttonText = existingLog ? 'View Today\'s Log 📊' : 'Daily Check-in 📝';
-  const streakEmoji = streak === 0 ? '🌱' : streak < 7 ? '🔥' : streak < 30 ? '💪' : '👑';
+  const buttonText = existingLog ? 'View Log' : 'Log Today';
+  const motivationalText = useMemo(() => {
+    if (streak === 0) return "Begin your journey";
+    if (streak === 1) return "One day stronger";
+    if (streak < 7) return "Building habits";
+    if (streak < 30) return "Momentum growing";
+    return "Mastery achieved";
+  }, [streak]);
 
   return (
     <View>
-      <Card className='border-0 overflow-hidden'>
-        <CardContent className='p-6'>
-          {renderWeeklyCircle()}
-          
-          <View className="items-center mb-4">
-            <Text className="text-4xl mb-2">{streakEmoji}</Text>
-            <Text className="text-center text-muted-foreground">
-              {streak === 0 && "Start your journey today"}
-              {streak === 1 && "Great start! Keep going"}
-              {streak > 1 && streak < 7 && "Building momentum"}
-              {streak >= 7 && streak < 30 && "Strong streak!"}
-              {streak >= 30 && "Incredible dedication!"}
-            </Text>
+      <Card className="border-0 shadow-none">
+        <CardContent className="p-4">
+          {/* Streak Header */}
+          <View className="items-center">
+            <View className="w-20 h-20 bg-primary/10 rounded-full items-center justify-center mb-3">
+              <Text className="text-3xl font-bold text-primary">{streak}</Text>
+            </View>
+            <Text className="text-2xl font-bold text-foreground mb-1">Day{streak !== 1 ? 's' : ''}</Text>
+            <Text className="text-center text-muted-foreground text-sm">{motivationalText}</Text>
           </View>
+          
+          {renderWeeklyBar()}
         </CardContent>
 
-        <CardFooter className="pt-0">
+        <CardFooter className="pt-0 bg-background/50">
           <Button 
-            size={"lg"} 
-            className='rounded-full w-full' 
+            size="lg" 
+            className="w-full rounded-xl" 
             onPress={() => setModalVisible(true)}
-            disabled={false}
           >
             <Text className="font-semibold">{buttonText}</Text>
           </Button>
@@ -491,18 +399,19 @@ const StreakCard: React.FC = () => {
       <Modal 
         visible={modalVisible} 
         animationType="slide" 
-        presentationStyle='pageSheet'
+        presentationStyle="pageSheet"
         onRequestClose={resetModal}
       >
         <View className="flex-1 bg-background">
+          {/* Header */}
           <View className="flex-row justify-between items-center px-6 py-4 bg-background border-b border-border">
-            <Text variant="h4">Daily Check-in</Text>
+            <Text variant="h4" className="font-semibold">Daily Check-in</Text>
             <TouchableOpacity 
               onPress={resetModal} 
               className="p-2 rounded-full bg-muted"
               activeOpacity={0.7}
             >
-              <Ionicons name="close" size={20} color="#6b7280" />
+              <Ionicons name="close" size={20} color="text-muted-foreground" />
             </TouchableOpacity>
           </View>
           
@@ -511,14 +420,14 @@ const StreakCard: React.FC = () => {
           {renderQuestion()}
           
           {step < questions.length && step > 0 && (
-            <View className="px-6 py-4 bg-background border-t border-border">
+            <View className="px-6 py-3 bg-background border-t border-border">
               <Button 
-                variant="outline" 
+                variant="ghost" 
                 size="sm" 
                 onPress={() => setStep((prev) => prev - 1)}
                 className="self-start"
               >
-                <Text>← Back</Text>
+                <Text className="text-sm">Back</Text>
               </Button>
             </View>
           )}

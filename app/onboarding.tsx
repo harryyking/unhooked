@@ -358,3 +358,6 @@ const OnboardingScreen: React.FC = () => {
       </View>
   );
 };
+
+
+export default OnboardingScreen

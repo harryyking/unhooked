@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
     StyleSheet,
     View,
-    ScrollView,
+    FlatList,
     Modal,
     KeyboardAvoidingView,
     Platform,
@@ -11,6 +11,7 @@ import {
     Dimensions,
     TouchableOpacity,
     Alert,
+    ScrollView,
 } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,13 +19,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useTheme } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Textarea } from '@/components/ui/textarea';
-
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-
-// We now use Convex's hooks for real-time data fetching and mutations.
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
+import {debounce} from 'lodash';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useAuth } from '@clerk/clerk-expo';
@@ -32,7 +33,7 @@ import { Id } from '@/convex/_generated/dataModel';
 
 const { width, height } = Dimensions.get('window');
 
-// Interface for the story data, now matching the expected Convex document schema.
+// Interface for the story data
 interface Story {
     _id: Id<'stories'>;
     title: string;
@@ -46,6 +47,8 @@ interface Story {
     readTime: string;
     hasUpvoted: boolean;
 }
+
+const ITEMS_PER_PAGE = 10;
 
 const Community = () => {
     const { colors } = useTheme();
@@ -61,26 +64,76 @@ const Community = () => {
     const [refreshing, setRefreshing] = useState(false);
     const [filterType, setFilterType] = useState<'trending' | 'recent' | 'top'>('trending');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [page, setPage] = useState(0);
+    const [cachedStories, setCachedStories] = useState<Story[]>([]);
+    const [error, setError] = useState<string | null>(null);
+    const [isOffline, setIsOffline] = useState(false);
     const fadeAnim = new Animated.Value(0);
 
-    // Fetch stories from Convex with a real-time query
-    const rawStories = useQuery(api.stories.getStories, { filterType });
-    const stories = rawStories ?? [];
-    const isLoading = rawStories === undefined;
+    // Fetch stories with pagination
+    const rawStories = useQuery(api.stories.getStories, { 
+        filterType, 
+    });
+    const stories = rawStories ?? cachedStories;
+    const isLoading = rawStories === undefined && cachedStories.length === 0;
 
-    // Use mutations
+    // Mutations
     const createStoryMutation = useMutation(api.stories.createStory);
     const upvoteStoryMutation = useMutation(api.stories.upvoteStory);
 
+    // Load cached stories
     useEffect(() => {
-        if (rawStories !== undefined) {
+        const loadCachedStories = async () => {
+            try {
+                const cached = await AsyncStorage.getItem(`stories_${filterType}_${page}`);
+                if (cached) {
+                    setCachedStories(JSON.parse(cached));
+                } else {
+                    setCachedStories([]);
+                }
+            } catch (err) {
+                console.error('Error loading cached stories:', err);
+                setError('Failed to load cached stories.');
+            }
+        };
+        loadCachedStories();
+    }, [filterType, page]);
+
+    // Cache stories when fetched
+    useEffect(() => {
+        if (rawStories) {
+            AsyncStorage.setItem(`stories_${filterType}_${page}`, JSON.stringify(rawStories)).catch((err) =>
+                console.error('Error caching stories:', err)
+            );
+            setCachedStories(rawStories);
+            setError(null);
             Animated.timing(fadeAnim, {
                 toValue: 1,
                 duration: 800,
                 useNativeDriver: true,
             }).start();
         }
-    }, [rawStories]);
+    }, [rawStories, filterType, page]);
+
+    // Offline detection
+    useEffect(() => {
+        const unsubscribe = NetInfo.addEventListener((state: any) => {
+            setIsOffline(!state.isConnected);
+            if (!state.isConnected && cachedStories.length > 0) {
+                Alert.alert('Offline', 'Showing cached stories. Connect to the internet for updates.');
+            }
+        });
+        return () => unsubscribe();
+    }, [cachedStories]);
+
+    // Debounced filter change
+    const debouncedSetFilterType = useMemo(
+        () => debounce((filter: 'trending' | 'recent' | 'top') => {
+            setFilterType(filter);
+            setPage(0); // Reset page when filter changes
+        }, 300),
+        []
+    );
 
     const handleUpvote = async (storyId: Id<'stories'>) => {
         if (!isSignedIn) {
@@ -120,7 +173,6 @@ const Community = () => {
         setIsSubmitting(true);
         
         try {
-            // Calculate read time on the client before creating the story
             const wordCount = newStory.content.trim().split(/\s+/).length;
             const readTime = Math.max(1, Math.ceil(wordCount / 200)) + ' min read';
 
@@ -131,7 +183,6 @@ const Community = () => {
                 readTime: readTime,
             });
 
-            // Reset the form and close the modal
             setNewStory({ title: '', content: '', category: 'Passion Story' });
             setShowCreateModal(false);
             Alert.alert('Success', 'Your story has been published!');
@@ -145,9 +196,22 @@ const Community = () => {
 
     const onRefresh = async () => {
         setRefreshing(true);
-        // Convex queries handle data fetching automatically
-        setTimeout(() => setRefreshing(false), 1000);
+        try {
+            setPage(0); // Reset to first page
+            await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate network delay
+        } catch (error) {
+            console.error('Error refreshing stories:', error);
+            setError('Failed to refresh stories.');
+        } finally {
+            setRefreshing(false);
+        }
     };
+
+    const loadMore = useCallback(() => {
+        if (rawStories && rawStories.length === ITEMS_PER_PAGE) {
+            setPage((prev) => prev + 1);
+        }
+    }, [rawStories]);
 
     const formatTime = (timestamp: number) => {
         const diff = Date.now() - timestamp;
@@ -162,6 +226,20 @@ const Community = () => {
     };
 
     const renderContent = () => {
+        if (error && stories.length === 0) {
+            return (
+                <View className="flex-1 items-center justify-center px-8">
+                    <Ionicons name="alert-circle-outline" size={64} color={colors.border} />
+                    <Text className="text-muted-foreground text-center mt-4 text-base">
+                        {error}
+                    </Text>
+                    <Button onPress={onRefresh} className="mt-4" size="sm">
+                        <Text>Retry</Text>
+                    </Button>
+                </View>
+            );
+        }
+
         if (isLoading) {
             return (
                 <View className="flex-1 items-center justify-center">
@@ -189,58 +267,54 @@ const Community = () => {
         }
         
         return (
-            <ScrollView
-                showsVerticalScrollIndicator={false}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-                className="flex-1"
-            >
-                {stories.map((story: Story) => (
+            <FlatList
+                data={stories}
+                renderItem={({ item }) => (
                     <StoryCard
-                        key={story._id.toString()}
-                        story={story}
+                        story={item}
                         onUpvote={handleUpvote}
                         formatTime={formatTime}
                     />
-                ))}
-                <View style={{ height: 100 }} /> 
-            </ScrollView>
+                )}
+                keyExtractor={(item) => item._id.toString()}
+                onEndReached={loadMore}
+                onEndReachedThreshold={0.5}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+                ListFooterComponent={<View style={{ height: 100 }} />}
+                showsVerticalScrollIndicator={false}
+            />
         );
     };
 
     return (
-        <View className="flex-1 bg-background">
-            <LinearGradient
-                colors={['#FF4000', 'rgba(0, 70, 255, 1)']}
-                style={{ paddingTop: insets.top }}
-            >
-                <View className="px-4 py-10">
-                    <View className="flex-row items-center justify-between mb-2">
-                        <View className="flex-1">
-                            <Text className="text-2xl font-bold text-white mb-1">
-                                Passion Stories
-                            </Text>
-                            <Text className="text-white/80 text-sm">
-                                Transformative journeys that inspire people
-                            </Text>
-                        </View>
-                        <View className="bg-white/20 rounded-full px-3 py-1">
-                            <Text className="text-white text-xs font-medium">
-                                {stories.length} stories
-                            </Text>
-                        </View>
+        <SafeAreaView className="flex-1">
+            <View className='px-4 py-8'>
+                <View className="flex-row items-center justify-between mb-2">
+                    <View className="flex-1">
+                        <Text className="text-2xl font-bold mb-1">
+                            Passion Stories
+                        </Text>
+                        <Text className="text-sm">
+                            Transformative journeys that inspire people
+                        </Text>
+                    </View>
+                    <View className="bg-white/20 rounded-full px-3 py-1">
+                        <Text className="text-xs font-medium">
+                            {stories.length} stories
+                        </Text>
                     </View>
                 </View>
-            </LinearGradient>
+            </View>
 
             {/* Filter Tabs */}
-            <View className="flex-row px-5 py-4 bg-background border-b border-border">
+            <View className="flex-row px-5 pb-4 border-b border-border">
                 {(['trending', 'recent', 'top'] as const).map((filter) => (
                     <Button
                         key={filter}
                         variant={filterType === filter ? 'default' : 'ghost'}
                         size="sm"
                         className="mr-3"
-                        onPress={() => setFilterType(filter)}
+                        onPress={() => debouncedSetFilterType(filter)}
                     >
                         <Text className={filterType === filter ? 'text-primary-foreground' : 'text-muted-foreground'}>
                             {filter.charAt(0).toUpperCase() + filter.slice(1)}
@@ -276,7 +350,6 @@ const Community = () => {
                 onRequestClose={() => setShowCreateModal(false)}
             >
                 <View className="flex-1 bg-background">
-                    {/* Modal Header */}
                     <View className="flex-row items-center justify-between px-5 py-4 border-b border-border">
                         <Button 
                             variant="ghost" 
@@ -285,9 +358,7 @@ const Community = () => {
                         >
                             <Text className="text-muted-foreground">Cancel</Text>
                         </Button>
-                        
                         <Text className="text-lg font-semibold">New Story</Text>
-                        
                         <Button 
                             variant="ghost" 
                             onPress={handleCreateStory}
@@ -308,7 +379,6 @@ const Community = () => {
                         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     >
                         <ScrollView className="flex-1 px-5 py-6">
-                            {/* Category Selection */}
                             <Text className="text-base font-semibold mb-3">Category</Text>
                             <View className="flex-row mb-6">
                                 {(['Passion Story', 'Testimony'] as const).map((category) => (
@@ -330,7 +400,6 @@ const Community = () => {
                                 ))}
                             </View>
 
-                            {/* Title Input */}
                             <Text className="text-base font-semibold mb-2">Title</Text>
                             <Input
                                 placeholder="Give your story a compelling title..."
@@ -343,10 +412,9 @@ const Community = () => {
                                 {newStory.title.length}/100 characters
                             </Text>
 
-                            {/* Content Input */}
                             <Text className="text-base font-semibold mb-2">Your Story</Text>
                             <Textarea
-                                placeholder="Share your transformative journey... Tell us about the challenges you faced, the breakthroughs you experienced, and how you overcame obstacles. Your story might be exactly what someone else needs to hear today."
+                                placeholder="Share your transformative journey..."
                                 value={newStory.content}
                                 onChangeText={(text) => setNewStory(prev => ({ ...prev, content: text }))}
                                 className="min-h-[200px]"
@@ -365,7 +433,7 @@ const Community = () => {
                     </KeyboardAvoidingView>
                 </View>
             </Modal>
-        </View>
+        </SafeAreaView>
     );
 };
 
@@ -400,7 +468,7 @@ const StoryCard = ({ story, onUpvote, formatTime }: StoryCardProps) => {
     };
 
     return (
-        <Animated.View style={{ transform: [{ scale: scaleAnim }] }} className="mx-5 mt-4 mb-4">
+        <Animated.View style={{ transform: [{ scale: scaleAnim }], marginHorizontal: 20, marginVertical: 8 }}>
             <TouchableOpacity
                 activeOpacity={0.9}
                 onPressIn={handlePressIn}
@@ -410,7 +478,6 @@ const StoryCard = ({ story, onUpvote, formatTime }: StoryCardProps) => {
                 <Card className="bg-secondary border border-border">
                     <CardHeader>
                         <View className="flex-col justify-between items-start">
-                    
                             <Badge 
                                 variant="secondary" 
                                 className='mb-2'
@@ -421,20 +488,17 @@ const StoryCard = ({ story, onUpvote, formatTime }: StoryCardProps) => {
                                 </Text>
                             </Badge>
                             <CardTitle className="text-lg font-bold text-foreground leading-6">
-                            {story.title}
-                        </CardTitle>
+                                {story.title}
+                            </CardTitle>
                         </View>
                     </CardHeader>
-                    
-                    <CardContent className="py-0 ">
-                            <Text className='text-sm text-muted-foreground leading-5' numberOfLines={3}>
-                                {story.content}
-                            </Text>
+                    <CardContent className="py-0">
+                        <Text className='text-sm text-muted-foreground leading-5' numberOfLines={3}>
+                            {story.content}
+                        </Text>
                     </CardContent>
-                    
                     <CardFooter className="pt-2">
                         <View className="flex-row items-center w-full">
-                            
                             <View className="mr-auto">
                                 <Text className="text-sm text-foreground">{story.author}</Text>
                                 <View className="flex-row items-center gap-2">
@@ -446,7 +510,6 @@ const StoryCard = ({ story, onUpvote, formatTime }: StoryCardProps) => {
                                     </Text>
                                 </View>
                             </View>
-
                             <TouchableOpacity
                                 className="flex-row items-center mr-6"
                                 onPress={() => onUpvote(story._id)}

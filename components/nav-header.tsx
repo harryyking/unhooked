@@ -35,14 +35,14 @@ const NavHeader = ({ navigationState, jumpTo }: {navigationState: NavigationStat
       </View>
 
       {/* Right side: Icons */}
-      <View className="flex-row items-center gap-5">
+      {/* <View className="flex-row items-center gap-5">
         <TouchableOpacity>
           <Bell size={24} color={colors.border} />
         </TouchableOpacity>
         <TouchableOpacity>
           <User size={24} color={colors.border} />
         </TouchableOpacity>
-      </View>
+      </View> */}
     </View>
   );
 };

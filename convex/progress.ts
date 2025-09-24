@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { api } from "./_generated/api";
+import { getUserByTokenIdentifier } from "./invite";
 
 /**
  * Logs or updates the daily progress for the authenticated user.
@@ -31,7 +32,8 @@ export const logDailyCheckin = mutation({
       throw new Error("User not authenticated.");
     }
 
-    const userId = identity.subject as Id<"users">;
+    const userId = await getUserByTokenIdentifier(ctx, identity.subject)
+    if (!userId) throw new Error ('UserId not found')
     const { logDate, clean } = args;
 
     // Check for yesterday's log to calculate streak
@@ -141,7 +143,8 @@ export const getCurrentStreak = query({
       return { streak: 0 };
     }
 
-    const userId = identity.subject as Id<"users">;
+    const userId = await getUserByTokenIdentifier(ctx, identity.subject)
+    if (!userId) throw new Error('UserId not found')
 
     // Get the most recent log
     const lastLog = await ctx.db

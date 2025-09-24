@@ -51,12 +51,18 @@ const TabsLayout = () => {
           backgroundColor: colors.background,
           height: Platform.OS === 'ios' ? 90 : 60,
           paddingBottom: Platform.OS === 'ios' ? 25 : 0,
-          borderTopWidth: 0,
+          borderTopWidth: 1,
+          borderColor: colors.border,
           ...Platform.select({
-            android: { elevation: 4 },
-            ios: { shadowColor: '#000', shadowOpacity: 0.1, shadowOffset: { width: 0, height: -2 }, shadowRadius: 4 },
+            android: { elevation: 2 },
+            ios: { shadowColor: '#000', shadowOpacity: 0.1, shadowOffset: { width: 0, height: -2 }, shadowRadius: 4,  },
           }),
+          position: 'absolute', // Optional: makes tab bar float
+          bottom: 0,
+          left: 0,
+          right: 0,
         },
+
         tabBarLabelStyle: {
           fontSize: 10,
           fontWeight: '400',

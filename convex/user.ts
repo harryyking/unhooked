@@ -141,7 +141,7 @@ export const getUserByToken = internalQuery({
     return await ctx.db
       .query("users")
       .filter((q) => q.eq(q.field("tokenIdentifier"), token))
-      .first();
+      .unique();
   },
 });
 

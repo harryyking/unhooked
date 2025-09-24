@@ -4,12 +4,12 @@
     "slug": "unhooked",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/unhooked-ios-icon.png",
+    "icon": "./assets/images/unhooked-ios-icon-3.png",
     "scheme": "unhooked",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/unhooked-splash-screen.png",
+      "image": "./assets/images/unhooked-splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
@@ -38,8 +38,15 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "color": "#ffffff"
+        }
+      ]
     ],
+
     "experiments": {
       "typedRoutes": true
     },

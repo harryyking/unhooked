@@ -7,7 +7,7 @@ import StreakCard from './streak-card';
 
 export const TodayScreen = () => {
   return (
-    <ScrollView className="flex-1 bg-background p-1">
+    <ScrollView className="flex-1 p-1" showsVerticalScrollIndicator={false} contentContainerStyle={{flexGrow: 1}}>
       <StreakCard />
       <DevotionalCard />
       <ShareCard />
