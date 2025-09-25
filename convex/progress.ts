@@ -17,7 +17,7 @@ export const logDailyCheckin = mutation({
       v.union(
         v.literal("Joyful"),
         v.literal("Hopeful"),
-        v.literal("Tempted"),
+        v.literal("Tempted"), 
         v.literal("Struggling"),
         v.literal("Peaceful")
       )

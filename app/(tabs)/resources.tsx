@@ -74,9 +74,9 @@ const MiniPlayer = memo(({
   togglePlayback: () => Promise<void>;
   stopAudio: () => Promise<void>;
   changePlaybackRate: (rate: number) => Promise<void>;
-  colors: any; // From useTheme
+  colors: any;
   dark: boolean;
-  insets: any; // From useSafeAreaInsets
+  insets: any;
 }) => {
   const currentTrack = getCurrentTrack();
   if (!currentTrack || !audioState.sound) return null;
@@ -93,121 +93,167 @@ const MiniPlayer = memo(({
       }}
       className="absolute bottom-0 left-0 right-0 z-50"
     >
-      <BlurView intensity={90} tint={colors.card === '#ffffff' ? 'light' : 'dark'}>
-        <View className="p-4" style={{ paddingBottom: insets.bottom + 16 }}>
+      {/* Enhanced backdrop with better blur and styling */}
+      <View className={`${dark ? 'bg-background' : 'bg-white/95'} backdrop-blur-xl`}>
+        {/* Top accent line */}
+        <View className="h-0.5 bg-background w-full" />
+        
+        <View className="px-6 py-4" style={{ paddingBottom: insets.bottom + 16 }}>
+          {/* Track info section with better layout */}
+          <View className="flex-row items-start mb-4">
+            {/* Album art placeholder with gradient */}
+            <View className={`w-14 h-14 rounded-xl mr-4 items-center justify-center bg-gradient-to-br ${dark ? 'from-primary/20 to-primary/40' : 'from-primary/10 to-primary/20'} border ${dark ? 'border-gray-700' : 'border-gray-200'}`}>
+              <MaterialCommunityIcons
+                name="music-note"
+                size={24}
+                color={colors.primary}
+              />
+            </View>
+            
+            {/* Track details */}
+            <View className="flex-1 min-h-[56px] justify-center">
+              <Text
+                className={`font-bold text-lg leading-tight mb-1 ${dark ? 'text-white' : 'text-gray-900'}`}
+                numberOfLines={2}
+              >
+                {currentTrack.title}
+              </Text>
+              <View className="flex-row items-center">
+                {audioState.isBuffering ? (
+                  <View className="flex-row items-center">
+                    <ActivityIndicator size="small" color={colors.primary} />
+                    <Text className={`text-sm ml-2 ${dark ? 'text-gray-400' : 'text-gray-600'}`}>
+                      Buffering...
+                    </Text>
+                  </View>
+                ) : (
+                  <Text className={`text-sm ${dark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Podcast Episode
+                  </Text>
+                )}
+              </View>
+            </View>
+            
+            {/* Compact stop button */}
+            <TouchableOpacity
+              onPress={stopAudio}
+              className={`w-8 h-8 rounded-lg items-center justify-center ${dark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'}`}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons
+                name="close"
+                size={18}
+                color={dark ? '#9ca3af' : '#6b7280'}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* Enhanced progress bar */}
           <View className="mb-4">
-            <Slider
-              style={{ width: '100%', height: 40 }}
-              minimumValue={0}
-              maximumValue={audioState.duration}
-              value={audioState.position}
-              onSlidingComplete={seekAudio}
-              minimumTrackTintColor={colors.primary}
-              maximumTrackTintColor={colors.border}
-              thumbTintColor={'rgba(0, 70, 255, 1)'}
-            />
-            <View className="flex-row justify-between mt-1">
-              <Text className="text-xs" style={{ color: colors.text }}>
+            <View className={`h-2 rounded-full overflow-hidden ${dark ? 'bg-gray-800' : 'bg-gray-200'}`}>
+              <View
+                className="h-full bg-primary rounded-full"
+                style={{
+                  width: `${audioState.duration > 0 ? (audioState.position / audioState.duration) * 100 : 0}%`
+                }}
+              />
+            </View>
+            
+            {/* Time display */}
+            <View className="flex-row justify-between mt-2">
+              <Text className={`text-xs font-medium ${dark ? 'text-gray-400' : 'text-gray-600'}`}>
                 {formatTime(audioState.position)}
               </Text>
-              <Text className="text-xs" style={{ color: colors.text }}>
+              <Text className={`text-xs font-medium ${dark ? 'text-gray-400' : 'text-gray-600'}`}>
                 {formatTime(audioState.duration)}
               </Text>
             </View>
           </View>
 
-          <View className="flex-row items-center justify-between">
-            <View className="flex-1">
-              <Text
-                className="font-bold text-base"
-                style={{ color: colors.text }}
-                numberOfLines={1}
-              >
-                {currentTrack.title}
-              </Text>
-              {audioState.isBuffering && (
-                <Text className="text-xs" style={{ color: colors.primary }}>
-                  Buffering...
-                </Text>
+          {/* Main control buttons */}
+          <View className="flex-row items-center justify-center mb-4 gap-6">
+            <TouchableOpacity
+              onPress={() => skipAudio(-10)}
+              className={`w-12 h-12 rounded-full items-center justify-center ${dark ? 'bg-gray-800 active:bg-gray-700' : 'bg-gray-100 active:bg-gray-200'}`}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons
+                name="rewind-10"
+                size={24}
+                color={dark ? '#e5e7eb' : '#374151'}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={togglePlayback}
+              className="w-16 h-16 rounded-full items-center justify-center bg-secondary"
+              disabled={audioState.isLoading}
+              activeOpacity={0.9}
+              
+            >
+              {audioState.isLoading ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <MaterialCommunityIcons
+                  name={audioState.isPlaying ? "pause" : "play"}
+                  size={32}
+                  color={dark ? "white" : "black"}
+                />
               )}
-            </View>
+            </TouchableOpacity>
 
-            <View className="flex-row items-center space-x-4">
-              <TouchableOpacity
-                onPress={() => skipAudio(-10)}
-                className="p-2"
-              >
-                <MaterialCommunityIcons
-                  name="rewind"
-                  size={28}
-                  color={colors.text}
-                />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={togglePlayback}
-                className="w-12 h-12 rounded-full items-center justify-center"
-                style={{ backgroundColor: colors.border }}
-                disabled={audioState.isLoading}
-              >
-                {audioState.isLoading ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <MaterialCommunityIcons
-                    name={audioState.isPlaying ? "pause" : "play"}
-                    size={28}
-                    color="#fff"
-                  />
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => skipAudio(30)}
-                className="p-2"
-              >
-                <MaterialCommunityIcons
-                  name="fast-forward-30"
-                  size={28}
-                  color={colors.text}
-                />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={stopAudio}
-                className="p-2"
-              >
-                <MaterialCommunityIcons
-                  name="stop"
-                  size={24}
-                  color={colors.notification}
-                />
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              onPress={() => skipAudio(30)}
+              className={`w-12 h-12 rounded-full items-center justify-center ${dark ? 'bg-gray-800 active:bg-gray-700' : 'bg-gray-100 active:bg-gray-200'}`}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons
+                name="fast-forward-30"
+                size={24}
+                color={dark ? '#e5e7eb' : '#374151'}
+              />
+            </TouchableOpacity>
           </View>
 
-          <View className="flex-row items-center justify-center mt-3 gap-4">
-            {[0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map((rate) => (
-              <TouchableOpacity
-                key={rate}
-                onPress={() => changePlaybackRate(rate)}
-                style={{
-                  paddingHorizontal: 12, paddingVertical: 4, borderRadius: 9999,
-                  backgroundColor: audioState.playbackRate === rate ? '#3b82f6' : (dark ? '#374151' : '#e5e7eb')
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 12, fontWeight: '500',
-                    color: audioState.playbackRate === rate ? '#fff' : (dark ? '#d1d5db' : '#374151')
-                  }}
-                >
-                  {rate}x
-                </Text>
-              </TouchableOpacity>
-            ))}
+          {/* Enhanced playback rate controls */}
+          <View className="items-center">
+            <Text className={`text-xs font-medium mb-3 ${dark ? 'text-gray-400' : 'text-gray-600'}`}>
+              PLAYBACK SPEED
+            </Text>
+            <View className="flex-row items-center gap-2">
+              {[0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map((rate) => {
+                const isActive = audioState.playbackRate === rate;
+                return (
+                  <TouchableOpacity
+                    key={rate}
+                    onPress={() => changePlaybackRate(rate)}
+                    className={`px-3 py-2 rounded-full min-w-[44px] items-center justify-center ${
+                      isActive 
+                        ? 'bg-primary' 
+                        : dark 
+                          ? 'bg-gray-800 active:bg-gray-700' 
+                          : 'bg-gray-100 active:bg-gray-200'
+                    }`}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      className={`text-sm font-semibold ${
+                        isActive 
+                          ? 'text-white' 
+                          : dark 
+                            ? 'text-gray-300' 
+                            : 'text-gray-700'
+                      }`}
+                    >
+                      {rate}x
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
         </View>
-      </BlurView>
+      </View>
     </Animated.View>
   );
 });
@@ -491,7 +537,7 @@ const Resources = () => {
   return (
     <SafeAreaView className="flex-1">
       <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
-        <View className="px-4 py-8">
+        <View className="px-4 py-6">
           <View className="flex-row items-center justify-between mb-4">
             <View>
               <Text className="text-2xl font-bold mb-1">

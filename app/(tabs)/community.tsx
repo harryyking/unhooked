@@ -11,6 +11,7 @@ import {
     View,
     ScrollView,
 } from 'react-native';
+import { useColorScheme } from 'nativewind';
 import { Text } from '@/components/ui/text';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -56,6 +57,7 @@ const Community = () => {
     const { colors } = useTheme();
     const insets = useSafeAreaInsets();
     const { isSignedIn, getToken } = useAuth();
+    const {colorScheme} = useColorScheme();
     
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [newStory, setNewStory] = useState({ 
@@ -314,19 +316,11 @@ const Community = () => {
                 {renderContent()}
             </Animated.View>
 
-            {/* Network Status Indicator */}
-            {!isOnline && (
-                <View className="absolute top-4 left-4 right-4 bg-destructive/10 border border-destructive rounded-lg p-3">
-                    <Text className="text-destructive text-center text-sm">
-                        Offline Mode - Showing cached stories
-                    </Text>
-                </View>
-            )}
 
             {/* Floating Action Button - Z-index fixed with higher elevation */}
             <TouchableOpacity
                 onPress={() => setShowCreateModal(true)}
-                className="absolute bottom-6 right-5 z-50 w-14 h-14 bg-primary rounded-full items-center justify-center shadow-2xl"
+                className="absolute bottom-28 right-4 z-100 w-14 h-14 bg-secondary rounded-full items-center justify-center shadow-2xl"
                 style={{
                     shadowColor: '#000',
                     shadowOffset: { width: 0, height: 4 },
@@ -335,7 +329,7 @@ const Community = () => {
                     elevation: 16, // Higher elevation for z-index
                 }}
             >
-                <Ionicons name="add" size={24} color="white" />
+                <Ionicons name="add" size={24} color={colorScheme === 'dark' ? "white" : 'black'} />
             </TouchableOpacity>
 
             {/* Create Story Modal */}
@@ -474,13 +468,12 @@ const StoryCard = React.memo(({ story, onUpvote, formatTime }: StoryCardProps) =
     }, []);
 
     return (
-        <Animated.View style={{ transform: [{ scale: scaleAnim }] }} className="mx-5 mb-4">
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }} className="mx-5 mb-4 mt-4">
             <TouchableOpacity
-                activeOpacity={0.9}
                 onPressIn={handlePressIn}
                 onPressOut={handlePressOut}
             >
-                <Card className="bg-card border-border">
+                <Card className="bg-secondary border-border">
                     <CardHeader className="pb-2">
                         <View className="flex-col justify-between items-start">
                             <Badge 
@@ -498,7 +491,7 @@ const StoryCard = React.memo(({ story, onUpvote, formatTime }: StoryCardProps) =
                         </View>
                     </CardHeader>
                     
-                    <CardContent className="py-0 px-0">
+                    <CardContent className="py-0">
                         <Text className='text-sm text-muted-foreground leading-5' numberOfLines={3}>
                             {story.content}
                         </Text>
@@ -507,12 +500,11 @@ const StoryCard = React.memo(({ story, onUpvote, formatTime }: StoryCardProps) =
                     <CardFooter className="pt-2">
                         <View className="flex-row items-center w-full">
                             <View className="mr-auto">
-                                <Text className="text-sm text-foreground">{story.author}</Text>
                                 <View className="flex-row items-center gap-2">
-                                    <Text className="text-xs text-muted-foreground">
+                                    <Text className="text-xs">
                                         {formatTime(story.createdAt)}
                                     </Text>
-                                    <Text className="text-xs text-muted-foreground">
+                                    <Text className="text-xs">
                                         {story.readTime}
                                     </Text>
                                 </View>

@@ -5,7 +5,6 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from './ui/card'
 import { useAction } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import PrayerCard from './prayer-card'; // Import the new PrayerCard component
 
 const { width } = Dimensions.get('window');
 
@@ -162,19 +161,16 @@ const DevotionalCard: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Text className='text-lg leading-6'>
+          <Text className='text-lg'>
             {formatVerseText(dailyVerse.verse)}
           </Text>
         </CardContent>
         <CardFooter>
-          <Text className='font-medium'>
+          <Text className='font-medium font-mono'>
             {formatReference(dailyVerse.reference)}
           </Text>
         </CardFooter>
       </Card>
-
-      {/* Prayer Card */}
-      <PrayerCard />
     </View>
   );
 };
