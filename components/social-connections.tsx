@@ -99,7 +99,7 @@ export function SocialConnections() {
             key={strategy.type}
             variant="outline"
             size="lg"
-            className="sm:flex-1 gap-2"
+            className="sm:flex-1 gap-4"
             onPress={() => onSocialLoginPress(strategy.type)}>
             <Image
               className={cn('size-4', strategy.useTint && Platform.select({ web: 'dark:invert' }))}

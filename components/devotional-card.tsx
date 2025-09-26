@@ -5,6 +5,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from './ui/card'
 import { useAction } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { PrayerTimerCard } from './prayer-card';
 
 const { width } = Dimensions.get('window');
 
@@ -171,6 +172,9 @@ const DevotionalCard: React.FC = () => {
           </Text>
         </CardFooter>
       </Card>
+
+
+      <PrayerTimerCard dailyVerse={dailyVerse.verse}/>
     </View>
   );
 };

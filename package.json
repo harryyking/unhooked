@@ -30,7 +30,7 @@
     "axios": "^1.12.1",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
-    "convex": "^1.27.0",
+    "convex": "^1.27.3",
     "expo": "53.0.22",
     "expo-auth-session": "~6.2.1",
     "expo-av": "^15.1.7",

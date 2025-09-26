@@ -1,114 +1,113 @@
-import { v } from "convex/values";
-import { query, mutation, action, internalQuery, ActionCtx } from "./_generated/server"; // Add internalQuery if you want private queries
-import { api } from "./_generated/api"; // For referencing functions
-import { Id } from "./_generated/dataModel";
+import { v } from 'convex/values';
+import { query, mutation, action, internalQuery, ActionCtx } from './_generated/server'; // Add internalQuery if you want private queries
+import { api } from './_generated/api'; // For referencing functions
+import { Id } from './_generated/dataModel';
 import axios from 'axios';
 
 const API_KEY = process.env.API_BIBLE_KEY;
 
-
 const bookMap: { [key: string]: string } = {
-  "GENESIS": "GEN",
-  "EXODUS": "EXO",
-  "LEVITICUS": "LEV",
-  "NUMBERS": "NUM",
-  "DEUTERONOMY": "DEU",
-  "JOSHUA": "JOS",
-  "JUDGES": "JDG",
-  "RUTH": "RUT",
-  "1 SAMUEL": "1SA",
-  "2 SAMUEL": "2SA",
-  "1 KINGS": "1KI",
-  "2 KINGS": "2KI",
-  "1 CHRONICLES": "1CH",
-  "2 CHRONICLES": "2CH",
-  "EZRA": "EZR",
-  "NEHEMIAH": "NEH",
-  "ESTHER": "EST",
-  "JOB": "JOB",
-  "PSALMS": "PSA",
-  "PROVERBS": "PRO",
-  "ECCLESIASTES": "ECC",
-  "SONG OF SONGS": "SNG",
-  "ISAIAH": "ISA",
-  "JEREMIAH": "JER",
-  "LAMENTATIONS": "LAM",
-  "EZEKIEL": "EZK",
-  "DANIEL": "DAN",
-  "HOSEA": "HOS",
-  "JOEL": "JOL",
-  "AMOS": "AMO",
-  "OBADIAH": "OBA",
-  "JONAH": "JON",
-  "MICAH": "MIC",
-  "NAHUM": "NAM",
-  "HABAKKUK": "HAB",
-  "ZEPHANIAH": "ZEP",
-  "HAGGAI": "HAG",
-  "ZECHARIAH": "ZEC",
-  "MALACHI": "MAL",
-  "MATTHEW": "MAT",
-  "MARK": "MRK",
-  "LUKE": "LUK",
-  "JOHN": "JHN",
-  "ACTS": "ACT",
-  "ROMANS": "ROM",
-  "1 CORINTHIANS": "1CO",
-  "2 CORINTHIANS": "2CO",
-  "GALATIANS": "GAL",
-  "EPHESIANS": "EPH",
-  "PHILIPPIANS": "PHP",
-  "COLOSSIANS": "COL",
-  "1 THESSALONIANS": "1TH",
-  "2 THESSALONIANS": "2TH",
-  "1 TIMOTHY": "1TI",
-  "2 TIMOTHY": "2TI",
-  "TITUS": "TIT",
-  "PHILEMON": "PHM",
-  "HEBREWS": "HEB",
-  "JAMES": "JAS",
-  "1 PETER": "1PE",
-  "2 PETER": "2PE",
-  "1 JOHN": "1JN",
-  "2 JOHN": "2JN",
-  "3 JOHN": "3JN",
-  "JUDE": "JUD",
-  "REVELATION": "REV",
+  GENESIS: 'GEN',
+  EXODUS: 'EXO',
+  LEVITICUS: 'LEV',
+  NUMBERS: 'NUM',
+  DEUTERONOMY: 'DEU',
+  JOSHUA: 'JOS',
+  JUDGES: 'JDG',
+  RUTH: 'RUT',
+  '1 SAMUEL': '1SA',
+  '2 SAMUEL': '2SA',
+  '1 KINGS': '1KI',
+  '2 KINGS': '2KI',
+  '1 CHRONICLES': '1CH',
+  '2 CHRONICLES': '2CH',
+  EZRA: 'EZR',
+  NEHEMIAH: 'NEH',
+  ESTHER: 'EST',
+  JOB: 'JOB',
+  PSALMS: 'PSA',
+  PROVERBS: 'PRO',
+  ECCLESIASTES: 'ECC',
+  'SONG OF SONGS': 'SNG',
+  ISAIAH: 'ISA',
+  JEREMIAH: 'JER',
+  LAMENTATIONS: 'LAM',
+  EZEKIEL: 'EZK',
+  DANIEL: 'DAN',
+  HOSEA: 'HOS',
+  JOEL: 'JOL',
+  AMOS: 'AMO',
+  OBADIAH: 'OBA',
+  JONAH: 'JON',
+  MICAH: 'MIC',
+  NAHUM: 'NAM',
+  HABAKKUK: 'HAB',
+  ZEPHANIAH: 'ZEP',
+  HAGGAI: 'HAG',
+  ZECHARIAH: 'ZEC',
+  MALACHI: 'MAL',
+  MATTHEW: 'MAT',
+  MARK: 'MRK',
+  LUKE: 'LUK',
+  JOHN: 'JHN',
+  ACTS: 'ACT',
+  ROMANS: 'ROM',
+  '1 CORINTHIANS': '1CO',
+  '2 CORINTHIANS': '2CO',
+  GALATIANS: 'GAL',
+  EPHESIANS: 'EPH',
+  PHILIPPIANS: 'PHP',
+  COLOSSIANS: 'COL',
+  '1 THESSALONIANS': '1TH',
+  '2 THESSALONIANS': '2TH',
+  '1 TIMOTHY': '1TI',
+  '2 TIMOTHY': '2TI',
+  TITUS: 'TIT',
+  PHILEMON: 'PHM',
+  HEBREWS: 'HEB',
+  JAMES: 'JAS',
+  '1 PETER': '1PE',
+  '2 PETER': '2PE',
+  '1 JOHN': '1JN',
+  '2 JOHN': '2JN',
+  '3 JOHN': '3JN',
+  JUDE: 'JUD',
+  REVELATION: 'REV',
   // Deuterocanonical (optional; remove if not needed for your app)
-  "TOBIT": "TOB",
-  "JUDITH": "JDT",
-  "ESTHER GREEK": "ESG",
-  "WISDOM OF SOLOMON": "WIS",
-  "SIRACH": "SIR",
-  "BARUCH": "BAR",
-  "LETTER OF JEREMIAH": "LJE",
-  "SONG OF THE 3 YOUNG MEN": "S3Y",
-  "SUSANNA": "SUS",
-  "BEL AND THE DRAGON": "BEL",
-  "1 MACCABEES": "1MA",
-  "2 MACCABEES": "2MA",
-  "3 MACCABEES": "3MA",
-  "4 MACCABEES": "4MA",
-  "1 ESDRAS": "1ES",
-  "2 ESDRAS": "2ES",
-  "PRAYER OF MANASSEH": "MAN",
-  "PSALM 151": "PS2",
-  "ODAE": "ODA",
-  "PSALMS OF SOLOMON": "PSS",
-  "EZRA APOCALYPSE": "EZA",
-  "5 EZRA": "5EZ",
-  "6 EZRA": "6EZ",
-  "DANIEL GREEK": "DAG",
-  "PSALMS 152-155": "PS3",
-  "2 BARUCH": "2BA",
-  "LETTER OF BARUCH": "LBA",
-  "JUBILEES": "JUB",
-  "ENOCH": "ENO",
-  "1 MEQABYAN": "1MQ",
-  "2 MEQABYAN": "2MQ",
+  TOBIT: 'TOB',
+  JUDITH: 'JDT',
+  'ESTHER GREEK': 'ESG',
+  'WISDOM OF SOLOMON': 'WIS',
+  SIRACH: 'SIR',
+  BARUCH: 'BAR',
+  'LETTER OF JEREMIAH': 'LJE',
+  'SONG OF THE 3 YOUNG MEN': 'S3Y',
+  SUSANNA: 'SUS',
+  'BEL AND THE DRAGON': 'BEL',
+  '1 MACCABEES': '1MA',
+  '2 MACCABEES': '2MA',
+  '3 MACCABEES': '3MA',
+  '4 MACCABEES': '4MA',
+  '1 ESDRAS': '1ES',
+  '2 ESDRAS': '2ES',
+  'PRAYER OF MANASSEH': 'MAN',
+  'PSALM 151': 'PS2',
+  ODAE: 'ODA',
+  'PSALMS OF SOLOMON': 'PSS',
+  'EZRA APOCALYPSE': 'EZA',
+  '5 EZRA': '5EZ',
+  '6 EZRA': '6EZ',
+  'DANIEL GREEK': 'DAG',
+  'PSALMS 152-155': 'PS3',
+  '2 BARUCH': '2BA',
+  'LETTER OF BARUCH': 'LBA',
+  JUBILEES: 'JUB',
+  ENOCH: 'ENO',
+  '1 MEQABYAN': '1MQ',
+  '2 MEQABYAN': '2MQ',
   // Add aliases if common in your inputs (e.g., for variations)
-  "SONG OF SOLOMON": "SNG", // Alias for Song of Songs
-  "CANTICLES": "SNG",       // Another rare alias
+  'SONG OF SOLOMON': 'SNG', // Alias for Song of Songs
+  CANTICLES: 'SNG', // Another rare alias
 };
 
 function normalizeVerseId(ref: string): string {
@@ -153,14 +152,13 @@ function normalizeVerseId(ref: string): string {
 
   return `${bookCode}.${chapterVerse}`;
 }
-  
 
 /**
  * Gets a random daily verse reference from devotionals.
  */
 export const getRandomDailyVerse = query({
   handler: async (ctx) => {
-    const allDevotionals = await ctx.db.query("devotionals").collect();
+    const allDevotionals = await ctx.db.query('devotionals').collect();
     if (allDevotionals.length === 0) {
       return null;
     }
@@ -169,11 +167,8 @@ export const getRandomDailyVerse = query({
   },
 });
 
-
 export const getDailyVerseForUser = action({
   handler: async (ctx: ActionCtx): Promise<{ verse: string; reference: string } | null> => {
-
-
     // Get user via runQuery (now from users.ts)
     const user = await ctx.runQuery(api.user.getCurrentUser);
 
@@ -212,8 +207,6 @@ export const getDailyVerseForUser = action({
   },
 });
 
-
-
 /**
  * Adds a verse reference to devotionals.
  */
@@ -224,7 +217,7 @@ export const addVerses = mutation({
   handler: async (ctx, args) => {
     // Optional: Add auth check here if needed
     const addVerse = await ctx.db.insert('devotionals', {
-      verses: normalizeVerseId(args.reference)
+      verses: normalizeVerseId(args.reference),
     });
 
     return addVerse;

@@ -27,10 +27,7 @@ export const addAudio = mutation({
 
     const newResourceId = await ctx.db.insert("resources", {
       storageId: args.storageId,
-      title: args.title,
-      description: args.description,
-      duration: args.duration,
-      url: args.url    
+      title: args.title,  
     });
 
     return newResourceId;

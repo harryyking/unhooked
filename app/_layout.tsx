@@ -141,6 +141,7 @@ function Routes() {
       <Stack.Protected guard={isSignedIn}>
         <Stack.Screen name="(tabs)" options={{headerShown:false}} />
       <Stack.Screen name="account" options={{headerShown:false}} />
+      <Stack.Screen name="prayer-session" options={{headerShown:false}} />
       </Stack.Protected>
 
       {/* Screens outside the guards are accessible to everyone (e.g. not found) */}

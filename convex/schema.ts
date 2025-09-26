@@ -36,7 +36,6 @@ export default defineSchema({
 
   devotionals: defineTable({
     verses: v.string(),
-    audioUrl: v.optional(v.string()),
   }),
 
 
@@ -109,9 +108,6 @@ export default defineSchema({
 
   resources: defineTable({
     title: v.string(),
-    description: v.optional(v.string()),
     storageId: v.id('_storage'), 
-    url: v.optional(v.string()),
-    duration: v.optional(v.number()),
   })
 });

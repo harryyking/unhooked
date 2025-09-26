@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalQuery, mutation, query, QueryCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { getUserByTokenIdentifier } from "./invite";
 
 // Helper function to get user by tokenIdentifier
 export async function userByExternalId(ctx: QueryCtx, tokenIdentifier: string) {
@@ -34,10 +35,10 @@ export const createOrUpdateUser = mutation({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
-    const tokenIdentifier = identity.tokenIdentifier;
-    if (!tokenIdentifier) throw new Error("No tokenIdentifier provided by Clerk");
+    const userId = await getUserByTokenIdentifier(ctx, identity.subject)
+    if (!userId) throw new Error('UserId not found')
 
-    const existingUser = await userByExternalId(ctx, tokenIdentifier);
+    const existingUser = await userByExternalId(ctx, userId);
 
     if (existingUser) {
       // Update existing user
@@ -53,7 +54,7 @@ export const createOrUpdateUser = mutation({
     // Create new user
     return await ctx.db.insert("users", {
       name: args.name,
-      tokenIdentifier,
+      tokenIdentifier: userId,
       avatarUrlId: args.avatarUrlId,
       orgId: args.orgId,
       email: args.email

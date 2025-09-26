@@ -8,7 +8,7 @@ export async function getUserByTokenIdentifier(ctx: QueryCtx, tokenIdentifier: s
   const user = await ctx.db
     .query('users')
     .filter((q) => q.eq(q.field("tokenIdentifier"), tokenIdentifier))
-    .unique();
+    .first();
   return user ? user._id : null;
 }
 

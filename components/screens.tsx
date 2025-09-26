@@ -2,7 +2,6 @@ import { ScrollView, View } from 'react-native';
 import React from 'react';
 import DevotionalCard from './devotional-card';
 import MemberCard from './member-card';
-import ShareCard from './share-card';
 import StreakCard from './streak-card';
 
 export const TodayScreen = () => {
@@ -10,7 +9,6 @@ export const TodayScreen = () => {
     <ScrollView className="flex-1 p-1" showsVerticalScrollIndicator={false} contentContainerStyle={{flexGrow: 1}}>
       <StreakCard />
       <DevotionalCard />
-      <ShareCard />
     </ScrollView>
   );
 };
