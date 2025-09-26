@@ -18,6 +18,7 @@
     ],
     "ios": {
       "supportsTablet": true,
+      "usesAppleSignIn": true,
       "bundleIdentifier": "com.harryyking.unhooked",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -51,8 +52,8 @@
       "typedRoutes": true
     },
     "extra": {
-      "convexUrl": "https://insightful-vulture-707.convex.cloud",
-      "clerkPublishableKey": "pk_test_ZW1pbmVudC1sZWVjaC00MC5jbGVyay5hY2NvdW50cy5kZXYk",
+      "convexUrl": "https://acrobatic-hawk-359.convex.cloud",
+      "clerkPublishableKey": "pk_live_Y2xlcmsudW5ob29rZWQueHl6JA",
       "router": {},
       "eas": {
         "projectId": "bd0f805e-e36c-479c-b76c-041d24e8a602"

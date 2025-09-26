@@ -40,7 +40,7 @@ export default function Screen() {
             {/* Title */}
             <Text 
               variant="h1" 
-              className="mb-4 text-left font-semibold text-7xl text"
+              className="mb-4 text-left font-semibold text-6xl font-mono"
             >
               Ready to Flee From Porn?
             </Text>
