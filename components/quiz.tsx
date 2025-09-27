@@ -221,7 +221,7 @@ export default function DesireQuiz({
         <View className="flex-1 justify-center items-center">
           {/* Title */}
           <Text className="text-3xl font-bold mb-8 text-center">
-            Your Assessment Result
+            Your Result
           </Text>
           
           {/* Score Circle */}
@@ -340,10 +340,10 @@ export default function DesireQuiz({
           onPress={goToNextQuestion}
           size={'lg'}
           disabled={selectedAnswers[currentQuestion.id] === undefined}
-          className="w-full "
+          className="w-full rounded-3xl"
         >
           <Text className="font-semibold">
-            {currentQuestionIndex === quizQuestions.length - 1 ? 'Finish Assessment' : 'Next Question'}
+            {currentQuestionIndex === quizQuestions.length - 1 ? 'Finish Quiz' : 'Next Question'}
           </Text>
         </Button>
       </View>
