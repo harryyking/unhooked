@@ -19,7 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "usesAppleSignIn": true,
-      "bundleIdentifier": "com.harryyking.unhooked",
+      "bundleIdentifier": "com.harryking.unhooked",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
