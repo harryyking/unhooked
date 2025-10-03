@@ -14,7 +14,6 @@ import type * as http from "../http.js";
 import type * as invite from "../invite.js";
 import type * as progress from "../progress.js";
 import type * as resource from "../resource.js";
-import type * as settings from "../settings.js";
 import type * as stories from "../stories.js";
 import type * as user from "../user.js";
 
@@ -39,7 +38,6 @@ declare const fullApi: ApiFromModules<{
   invite: typeof invite;
   progress: typeof progress;
   resource: typeof resource;
-  settings: typeof settings;
   stories: typeof stories;
   user: typeof user;
 }>;

@@ -21,7 +21,7 @@ export const createStory = mutation({
 
     const user = await ctx.db
     .query("users")
-    .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+    .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", identity.subject))
     .unique();
 
   if (!user) {
@@ -107,7 +107,7 @@ export const upvoteStory = mutation({
 
     const user = await ctx.db
     .query("users")
-    .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+    .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", identity.subject))
     .unique();
 
   if (!user) {

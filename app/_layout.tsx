@@ -3,7 +3,7 @@ import '@/global.css';
 import { NAV_THEME } from '@/lib/theme';
 import { ThemeProvider } from '@react-navigation/native';
 import { PortalHost } from '@rn-primitives/portal';
-import { Stack } from 'expo-router';
+import { Slot, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'nativewind';
@@ -62,11 +62,6 @@ function Routes() {
 
   return (
     <>
-    <AuthLoading>
-        <View className='flex-1 bg-background items-center justify-center'>
-
-        </View>
-      </AuthLoading>
       <Unauthenticated>
         <Stack>
           {/* Screens only shown when the user is NOT signed in */}

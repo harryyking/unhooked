@@ -1,18 +1,53 @@
+// convex/schema.ts
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 export default defineSchema({
+  // Better Auth required tables (added for completeness; adjust if Better Auth adapter handles them automatically)
   users: defineTable({
-    name: v.optional(v.string()),
     tokenIdentifier: v.string(),
-    email:v.optional(v.string()),
-    avatarUrlId : v.optional(v.id("_storage")),
-    orgId: v.optional(v.string()),
-    preferredBibleVersion: v.optional(v.string())
+    name: v.optional(v.string()),
+    email: v.optional(v.string()),
+    avatarUrlId: v.optional(v.id("_storage")),
+    preferredBibleVersion: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    lastSeen: v.optional(v.number()),
   })
-    .index('by_token', ['tokenIdentifier']),
+    .index('by_tokenIdentifier', ['tokenIdentifier'])
+    .index('by_email', ['email']),
 
+  accounts: defineTable({
+    userId: v.id("users"),
+    provider: v.string(),
+    providerAccountId: v.string(),
+    accessToken: v.optional(v.string()),
+    refreshToken: v.optional(v.string()),
+    expiresAt: v.optional(v.number()),
+    tokenType: v.optional(v.string()),
+    scope: v.optional(v.string()),
+    idToken: v.optional(v.string()),
+    sessionState: v.optional(v.string()),
+  })
+    .index('by_userId', ['userId'])
+    .index('by_provider_providerAccountId', ['provider', 'providerAccountId']),
 
+  sessions: defineTable({
+    userId: v.id("users"),
+    expiresAt: v.number(),
+    ipAddress: v.optional(v.string()),
+    userAgent: v.optional(v.string()),
+  })
+    .index('by_userId', ['userId']),
+
+  verification: defineTable({
+    identifier: v.string(),
+    token: v.string(),
+    expiresAt: v.number(),
+  })
+    .index('by_identifier_token', ['identifier', 'token']),
+
+  // Your other tables
   progress: defineTable({
     userId: v.id("users"),
     logDate: v.string(),
@@ -20,13 +55,12 @@ export default defineSchema({
     clean: v.boolean(),
     journal: v.optional(v.string()),
     mood: v.optional(v.union(
-        v.literal("Joyful"),
-        v.literal("Hopeful"),
-        v.literal("Tempted"),
-        v.literal("Struggling"),
-        v.literal("Peaceful")
-    )
-  ),
+      v.literal("Joyful"),
+      v.literal("Hopeful"),
+      v.literal("Tempted"),
+      v.literal("Struggling"),
+      v.literal("Peaceful")
+    )),
     triggers: v.optional(v.array(v.string())),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -37,8 +71,6 @@ export default defineSchema({
   devotionals: defineTable({
     verses: v.string(),
   }),
-
-
 
   stories: defineTable({
     userId: v.id("users"),
@@ -54,7 +86,6 @@ export default defineSchema({
   }).index("by_createdAt", ["createdAt"])
     .index("by_upvotes", ["upvotes"]),
 
-  // A new table to track upvotes
   upvotes: defineTable({
     userId: v.id("users"),
     storyId: v.id('stories'),
@@ -87,14 +118,6 @@ export default defineSchema({
     createdAt: v.number(),
   }).index('by_code', ['code']),
 
-  userSettings: defineTable({
-    userId: v.id('users'),
-    blockerEnabled: v.boolean(),
-    notificationPrefs: v.optional(v.object({})),
-    updatedAt: v.number(),
-    mascotPrefs: v.optional(v.object({})), // For Eagle Eli settings
-  }).index('by_userId', ['userId']),
-
   comments: defineTable({
     authorId: v.id("users"),
     storyId: v.id("stories"),
@@ -102,13 +125,8 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_storyId", ["storyId"]),
 
-  blacklist: defineTable({
-    urls: v.array(v.string()),
-  }),
-
   resources: defineTable({
     title: v.string(),
     storageId: v.id('_storage'), 
   })
-  
 });
