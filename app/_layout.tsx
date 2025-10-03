@@ -1,8 +1,6 @@
 import '@/global.css';
 
 import { NAV_THEME } from '@/lib/theme';
-import { ClerkLoaded, ClerkProvider, useAuth } from '@clerk/clerk-expo';
-import { tokenCache } from '@clerk/clerk-expo/token-cache';
 import { ThemeProvider } from '@react-navigation/native';
 import { PortalHost } from '@rn-primitives/portal';
 import { Stack } from 'expo-router';
@@ -10,11 +8,12 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'nativewind';
 import * as React from 'react';
-import Constants from 'expo-constants';
-import { ConvexClientProvider } from '@/components/convexclientProvider'; // Adjust path if needed
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
-import { Alert, Platform } from 'react-native';
+import { ConvexBetterAuthProvider,  } from "@convex-dev/better-auth/react"; 
+import { authClient } from "@/lib/auth-client"; 
+import { Alert, Platform, View } from 'react-native';
+import { Authenticated, AuthLoading, ConvexReactClient, Unauthenticated } from 'convex/react';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -56,96 +55,36 @@ const REMINDER_TIMES = [
   { hour: 2, minute: 0 },
 ];
 
-const getClerkPublishableKey = (): string => {
-  const envKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
-  const configKey = Constants.expoConfig?.extra?.clerkPublishableKey;
-  
-  const publishableKey = envKey || configKey;
-  
-  if (!publishableKey) {
-    throw new Error(
-      'Clerk publishable key not found. Please set EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY in your .env file or add clerkPublishableKey to app.json extra field'
-    );
-  }
-  
-  return publishableKey;
-};
-
-export default function RootLayout() {
-  const { colorScheme } = useColorScheme();
-
-  // Global listeners and initial check for reminders
+function Routes() {
   React.useEffect(() => {
-    const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('Notification tapped:', response);
-      Alert.alert('Check-In', 'Time to reflect on your recovery journey!');
-    });
-
-    const receivedSubscription = Notifications.addNotificationReceivedListener(notification => {
-      console.log('Notification received in foreground:', notification);
-    });
-
-    // Check and schedule on app start if enabled
-    checkAndScheduleReminders();
-
-    return () => {
-      responseSubscription.remove();
-      receivedSubscription.remove();
-    };
+    SplashScreen.hideAsync();
   }, []);
 
   return (
-    <ClerkProvider 
-      publishableKey={getClerkPublishableKey()}
-      tokenCache={tokenCache}
-    >
-      <ClerkLoaded>
-      <ConvexClientProvider>
-        <ThemeProvider value={NAV_THEME[colorScheme ?? 'light']}>
-          <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-          <Routes />
-          <PortalHost />
-        </ThemeProvider>
-      </ConvexClientProvider>
-      </ClerkLoaded>
-    </ClerkProvider>
-  );
-}
+    <>
+    <AuthLoading>
+        <View className='flex-1 bg-background items-center justify-center'>
 
-SplashScreen.preventAutoHideAsync();
-
-function Routes() {
-  const { isSignedIn, isLoaded } = useAuth();
-
-  React.useEffect(() => {
-    if (isLoaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [isLoaded]);
-
-  if (!isLoaded) {
-    return null;
-  }
-
-  return (
-    <Stack>
-      {/* Screens only shown when the user is NOT signed in */}
-      <Stack.Protected guard={!isSignedIn}>
-        <Stack.Screen name="index" options={{headerShown: false}} />
-        <Stack.Screen name="quizzes" options={{headerShown: false}} />
-        <Stack.Screen name="onboarding" options={{headerShown: false}} />
-        <Stack.Screen name="(auth)/sign-up" options={SIGN_UP_SCREEN_OPTIONS} />
-      </Stack.Protected>
-
-      {/* Screens only shown when the user IS signed in */}
-      <Stack.Protected guard={isSignedIn}>
-        <Stack.Screen name="(tabs)" options={{headerShown:false}} />
-      <Stack.Screen name="account" options={{headerShown:false}} />
-      <Stack.Screen name="prayer-session" options={{headerShown:false}} />
-      </Stack.Protected>
-
-      {/* Screens outside the guards are accessible to everyone (e.g. not found) */}
-    </Stack>
+        </View>
+      </AuthLoading>
+      <Unauthenticated>
+        <Stack>
+          {/* Screens only shown when the user is NOT signed in */}
+          <Stack.Screen name="index" options={{headerShown: false}} />
+          <Stack.Screen name="quizzes" options={{headerShown: false}} />
+          <Stack.Screen name="onboarding" options={{headerShown: false}} />
+          <Stack.Screen name="(auth)/sign-up" options={SIGN_UP_SCREEN_OPTIONS} />
+        </Stack>
+      </Unauthenticated>
+      <Authenticated>
+        <Stack>
+          {/* Screens only shown when the user IS signed in */}
+          <Stack.Screen name="(tabs)" options={{headerShown: false}} />
+          <Stack.Screen name="account" options={{headerShown: false}} />
+          <Stack.Screen name="prayer-session" options={{headerShown: false}} />
+        </Stack>
+      </Authenticated>
+    </>
   );
 }
 
@@ -244,4 +183,50 @@ export async function cancelReminders() {
   await Notifications.cancelAllScheduledNotificationsAsync();
   await SecureStore.setItemAsync('remindersEnabled', 'false');
   Alert.alert('Cancelled', 'All check-in reminders have been cancelled.');
+}
+
+SplashScreen.preventAutoHideAsync();
+
+export default function RootLayout() {
+  const { colorScheme } = useColorScheme();
+
+  const convex = React.useMemo(
+    () =>
+      new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
+        // Optionally pause queries until the user is authenticated
+        expectAuth: true, 
+        unsavedChangesWarning: false, 
+      }),
+    []
+  );
+
+  // Global listeners and initial check for reminders
+  React.useEffect(() => {
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log('Notification tapped:', response);
+      Alert.alert('Check-In', 'Time to reflect on your recovery journey!');
+    });
+
+    const receivedSubscription = Notifications.addNotificationReceivedListener(notification => {
+      console.log('Notification received in foreground:', notification);
+    });
+
+    // Check and schedule on app start if enabled
+    checkAndScheduleReminders();
+
+    return () => {
+      responseSubscription.remove();
+      receivedSubscription.remove();
+    };
+  }, []);
+
+  return (
+      <ConvexBetterAuthProvider client={convex} authClient={authClient}>
+        <ThemeProvider value={NAV_THEME[colorScheme ?? 'light']}>
+          <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+          <Routes />
+          <PortalHost />
+        </ThemeProvider>
+      </ConvexBetterAuthProvider>
+  );
 }

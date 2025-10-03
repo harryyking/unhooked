@@ -15,7 +15,7 @@ export const TodayScreen = () => {
 
 export const CommunityScreen = () => {
   return (
-    <View className="flex-1 bg-background p-1">
+    <View className="flex-1 p-1">
       <MemberCard />
     </View>
   );

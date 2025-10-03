@@ -5,7 +5,6 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useColorScheme } from 'nativewind';
 import { useRouter } from 'expo-router';
-import { useClerk } from '@clerk/clerk-expo';
 import NetInfo from '@react-native-community/netinfo';
 import * as SecureStore from 'expo-secure-store';
 import { enableReminders, cancelReminders } from '../_layout'; // Import from RootLayout
@@ -121,7 +120,6 @@ const Settings = () => {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colorScheme, setColorScheme } = useColorScheme();
-  const { signOut } = useClerk();
   const [isDark, setIsDark] = useState(colorScheme === 'dark');
   const [remindersEnabled, setRemindersEnabled] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
@@ -207,7 +205,6 @@ const Settings = () => {
           text: 'Sign Out',
           onPress: async () => {
             try {
-              await signOut();
               router.replace('/(auth)/sign-up');
             } catch (error) {
               console.error('Error signing out:', error);
@@ -218,7 +215,7 @@ const Settings = () => {
         },
       ]
     );
-  }, [signOut, router]);
+  }, [ router]);
 
   return (
     <View className="flex-1 bg-background">

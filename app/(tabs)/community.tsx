@@ -24,9 +24,8 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Netinfo from '@react-native-community/netinfo'
-import { useQuery, useMutation } from 'convex/react';
+import { useQuery, useMutation, Authenticated } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { useAuth } from '@clerk/clerk-expo';
 import { Id } from '@/convex/_generated/dataModel';
 
 const { width, height } = Dimensions.get('window');
@@ -56,7 +55,6 @@ interface CachedStories {
 const Community = () => {
     const { colors } = useTheme();
     const insets = useSafeAreaInsets();
-    const { isSignedIn, getToken } = useAuth();
     const {colorScheme} = useColorScheme();
     
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -142,10 +140,6 @@ const Community = () => {
     }, [stories]);
 
     const handleUpvote = useCallback(async (storyId: Id<'stories'>) => {
-        if (!isSignedIn) {
-            Alert.alert('Sign In Required', 'Please sign in to upvote stories.');
-            return;
-        }
         
         try {
             await upvoteStoryMutation({ storyId });
@@ -158,13 +152,9 @@ const Community = () => {
             console.error('Error upvoting story:', error);
             Alert.alert('Error', 'Failed to upvote story. Please try again.');
         }
-    }, [isSignedIn, upvoteStoryMutation, isOnline]);
+    }, [ upvoteStoryMutation, isOnline]);
 
     const handleCreateStory = useCallback(async () => {
-        if (!isSignedIn) {
-            Alert.alert('Sign In Required', 'Please sign in to create stories.');
-            return;
-        }
 
         if (!newStory.title.trim() || !newStory.content.trim()) {
             Alert.alert('Validation Error', 'Please fill in both title and content');
@@ -209,7 +199,7 @@ const Community = () => {
         } finally {
             setIsSubmitting(false);
         }
-    }, [isSignedIn, newStory, createStoryMutation, isOnline]);
+    }, [ newStory, createStoryMutation, isOnline]);
 
     const formatTime = useCallback((timestamp: number) => {
         const diff = Date.now() - timestamp;
@@ -318,6 +308,8 @@ const Community = () => {
 
 
             {/* Floating Action Button - Z-index fixed with higher elevation */}
+            <Authenticated>
+
             <TouchableOpacity
                 onPress={() => setShowCreateModal(true)}
                 className="absolute bottom-28 right-4 z-100 w-14 h-14 bg-secondary rounded-full items-center justify-center shadow-2xl"
@@ -331,6 +323,7 @@ const Community = () => {
             >
                 <Ionicons name="add" size={24} color={colorScheme === 'dark' ? "white" : 'black'} />
             </TouchableOpacity>
+            </Authenticated>
 
             {/* Create Story Modal */}
             <Modal

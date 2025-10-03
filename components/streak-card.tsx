@@ -3,11 +3,9 @@ import { Text } from './ui/text';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardFooter } from './ui/card';
-import { Input } from './ui/input';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import { Ionicons } from '@expo/vector-icons';
-import Svg, { Circle, Text as SvgText, G, Line } from 'react-native-svg';
 import { Textarea } from './ui/textarea';
 
 interface Answers {

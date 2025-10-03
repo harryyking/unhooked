@@ -4,11 +4,9 @@ import { Card, CardDescription, CardFooter, CardHeader, CardTitle, CardContent }
 import { Text } from './ui/text';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { useQuery, useMutation } from 'convex/react';
+import { useQuery, useMutation, Unauthenticated, Authenticated, useConvexAuth } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useAuth } from '@clerk/clerk-expo';
 
 const { width, height } = Dimensions.get('window');
 
@@ -29,9 +27,9 @@ const MemberCard: React.FC = () => {
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
 
-  const { isSignedIn } = useAuth();
-
-  const partnershipUsers = useQuery(api.invite.getPartnershipUsersWithStreaks) || [];
+  // Auth state
+  const {isAuthenticated, isLoading } = useConvexAuth();
+  const partnershipUsers = useQuery(api.invite.getPartnershipUsersWithStreaks, isAuthenticated ? undefined : "skip") || [];
   const generateInviteMutation = useMutation(api.invite.generateInvite);
   const redeemInvite = useMutation(api.invite.redeemInvite);
 
@@ -64,18 +62,28 @@ const MemberCard: React.FC = () => {
     }
   }, [redeemModalVisible]);
 
+  // Close modals if user signs out
+  useEffect(() => {
+    if (!isAuthenticated && (modalVisible || redeemModalVisible)) {
+      setModalVisible(false);
+      setRedeemModalVisible(false);
+      Alert.alert("Session Expired", "Please sign in to continue.");
+    }
+  }, [isAuthenticated]);
+
   const handleGenerateInvite = async (): Promise<void> => {
-    if (!isSignedIn) {
-      console.error('User is not signed in. Cannot generate invite code.');
+    if (!isAuthenticated) {
+      Alert.alert("Sign In Required", "Please sign in to generate an invite code.");
       return;
     }
     
     try {
-      const code = await generateInviteMutation();
+      const result = await generateInviteMutation();
       setInviteCode(code);
       setIsCopied(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating invite:', error);
+      Alert.alert("Error", "Failed to generate invite code. Please try again.");
     }
   };
 
@@ -95,14 +103,20 @@ const MemberCard: React.FC = () => {
         });
       } catch (error) {
         console.error('Error sharing invite:', error);
+        Alert.alert("Error", "Failed to share invite code.");
       }
     }
   };
 
   const handleRedeem = async () => {
+    if (!isAuthenticated) {
+      Alert.alert("Sign In Required", "Please sign in to redeem an invite code.");
+      setRedeemModalVisible(false);
+      return;
+    }
+
     if (code.trim().length === 0) {
       setError("Please enter an invite code.");
-      // Shake animation for error
       Animated.sequence([
         Animated.timing(slideAnim, { toValue: 0.95, duration: 100, useNativeDriver: true }),
         Animated.timing(slideAnim, { toValue: 1.05, duration: 100, useNativeDriver: true }),
@@ -149,8 +163,9 @@ const MemberCard: React.FC = () => {
         ]).start();
       });
     } catch (error: any) {
-      setError("Failed to redeem invite code");
-      Alert.alert("Redemption Failed",  "Please try again");
+      const errorMessage = error.message || "Failed to redeem invite code. Please try again.";
+      setError(errorMessage);
+      Alert.alert("Redemption Failed", errorMessage);
       
       Animated.sequence([
         Animated.timing(slideAnim, { toValue: 0.95, duration: 100, useNativeDriver: true }),
@@ -181,6 +196,14 @@ const MemberCard: React.FC = () => {
       <Text className="text-sm text-muted-foreground">Streak: {item.currentStreak}</Text>
     </View>
   );
+
+  if (isLoading) {
+    return (
+      <View className="flex-1 justify-center items-center">
+        <ActivityIndicator size="large" color="#0000ff" />
+      </View>
+    );
+  }
 
   return (
     <View className='mt-6'>
@@ -248,8 +271,8 @@ const MemberCard: React.FC = () => {
 
             <Button 
               onPress={handleGenerateInvite} 
-              disabled={!isSignedIn}
               className='mb-4'
+              disabled={!isAuthenticated || isLoading}
             >
               <View className="flex-row items-center">
                 <Ionicons name="add-circle-outline" size={20} className="text-primary-foreground mr-2" />
@@ -257,60 +280,62 @@ const MemberCard: React.FC = () => {
               </View>
             </Button>
 
-            {!isSignedIn && (
+            <Unauthenticated>
               <View className="flex-row items-center bg-destructive/10 p-4 rounded-lg mb-6 border-l-4 border-destructive">
                 <Ionicons name="warning" size={20} className="text-destructive mr-3" />
                 <Text className="text-destructive text-sm flex-1">
                   You must be signed in to generate an invite code.
                 </Text>
               </View>
-            )}
+            </Unauthenticated>
 
-            {inviteCode && (
-              <View className="flex-1">
-                <View className="bg-muted/30 border-2 border-dashed border-border rounded-2xl py-8 px-5 mb-6">
-                  <Text className="text-3xl font-bold text-center tracking-wider font-mono">
-                    {inviteCode}
-                  </Text>
+            <Authenticated>
+              {inviteCode && (
+                <View className="flex-1">
+                  <View className="bg-muted/30 border-2 border-dashed border-border rounded-2xl py-8 px-5 mb-6">
+                    <Text className="text-3xl font-bold text-center tracking-wider font-mono">
+                      {inviteCode}
+                    </Text>
+                  </View>
+
+                  <View className="flex-row gap-3 mb-6">
+                    <Button 
+                      variant="outline" 
+                      onPress={handleCopyCode} 
+                      className={`flex-1 ${isCopied ? 'bg-green-50 border-green-200' : ''}`}
+                    >
+                      <View className="flex-row items-center">
+                        <Ionicons 
+                          name={isCopied ? "checkmark" : "copy-outline"} 
+                          size={18} 
+                          className={isCopied ? "text-green-600 mr-2" : "text-white mr-2"} 
+                        />
+                        <Text className={isCopied ? "text-green-600 font-medium" : "font-medium"}>
+                          {isCopied ? "Copied!" : "Copy Code"}
+                        </Text>
+                      </View>
+                    </Button>
+
+                    <Button 
+                      onPress={handleShareCode} 
+                      className="flex-1"
+                    >
+                      <View className="flex-row items-center">
+                        <Ionicons name="share-outline" size={18} className="text-primary-foreground mr-2" />
+                        <Text className="text-primary-foreground font-medium">Share Code</Text>
+                      </View>
+                    </Button>
+                  </View>
+
+                  <View className="bg-muted/30 p-4 rounded-lg border-l-4 border-primary">
+                    <Text className="text-sm text-muted-foreground text-center leading-5">
+                      Share this code with friends so they can join as your accountability partners. 
+                      They'll need to enter this code when signing up.
+                    </Text>
+                  </View>
                 </View>
-
-                <View className="flex-row gap-3 mb-6">
-                  <Button 
-                    variant="outline" 
-                    onPress={handleCopyCode} 
-                    className={`flex-1 ${isCopied ? 'bg-green-50 border-green-200' : ''}`}
-                  >
-                    <View className="flex-row items-center">
-                      <Ionicons 
-                        name={isCopied ? "checkmark" : "copy-outline"} 
-                        size={18} 
-                        className={isCopied ? "text-green-600 mr-2" : "text-white mr-2"} 
-                      />
-                      <Text className={isCopied ? "text-green-600 font-medium" : "font-medium"}>
-                        {isCopied ? "Copied!" : "Copy Code"}
-                      </Text>
-                    </View>
-                  </Button>
-
-                  <Button 
-                    onPress={handleShareCode} 
-                    className="flex-1"
-                  >
-                    <View className="flex-row items-center">
-                      <Ionicons name="share-outline" size={18} className="text-primary-foreground mr-2" />
-                      <Text className="text-primary-foreground font-medium">Share Code</Text>
-                    </View>
-                  </Button>
-                </View>
-
-                <View className="bg-muted/30 p-4 rounded-lg border-l-4 border-primary">
-                  <Text className="text-sm text-muted-foreground text-center leading-5">
-                    Share this code with friends so they can join as your accountability partners. 
-                    They'll need to enter this code when signing up.
-                  </Text>
-                </View>
-              </View>
-            )}
+              )}
+            </Authenticated>
           </KeyboardAvoidingView>
         </View>
       </Modal>
@@ -323,7 +348,6 @@ const MemberCard: React.FC = () => {
         onRequestClose={() => setRedeemModalVisible(false)}
       >
         <View className="flex-1 bg-background">
-          {/* Modal Header */}
           <View className="items-center pt-3 px-5 pb-2">
             <View className="w-10 h-1 bg-muted-foreground/30 rounded-full mb-3" />
           </View>
@@ -396,7 +420,6 @@ const MemberCard: React.FC = () => {
                 }}
                 className="flex-1"
               >
-                {/* Title Section */}
                 <View className="items-center mb-8">
                   <View className="w-16 h-16 bg-primary/10 rounded-full items-center justify-center mb-4">
                     <Ionicons name="link" size={32} className="text-primary" />
@@ -409,7 +432,6 @@ const MemberCard: React.FC = () => {
                   </Text>
                 </View>
 
-                {/* Code Input Section */}
                 <View className="mb-6">
                   <Text className="text-sm font-medium text-foreground mb-3">
                     Invite Code
@@ -441,7 +463,6 @@ const MemberCard: React.FC = () => {
                     )}
                   </View>
 
-                  {/* Progress indicator */}
                   <View className="flex-row justify-center space-x-1 mt-3">
                     {[...Array(8)].map((_, index) => (
                       <View
@@ -458,7 +479,6 @@ const MemberCard: React.FC = () => {
                   </Text>
                 </View>
 
-                {/* Error Message */}
                 {error ? (
                   <View className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 mb-6">
                     <View className="flex-row items-center">
@@ -470,11 +490,10 @@ const MemberCard: React.FC = () => {
                   </View>
                 ) : null}
 
-                {/* Submit Button */}
                 <Button
                   size="lg"
                   onPress={handleRedeem}
-                  disabled={isSubmitting || code.length < 8}
+                  disabled={isSubmitting || code.length < 8 || !isAuthenticated || isLoading}
                   className="w-full mb-4"
                 >
                   {isSubmitting ? (

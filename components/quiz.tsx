@@ -1,4 +1,3 @@
-// components/DesireQuiz.tsx
 import React, { useState, useEffect } from 'react';
 import { ScrollView, Alert, Dimensions, ActivityIndicator, View } from 'react-native';
 import { Button } from '@/components/ui/button';
@@ -16,7 +15,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Progress } from './ui/progress';
 import { Label } from './ui/label';
 
-// Interfaces for type safety
 interface QuizOption {
   option_text: string;
   score_value: number;
@@ -30,7 +28,7 @@ interface QuizQuestion {
 }
 
 interface ScoreRange {
-  max_score: number;
+  max_score: number; // Now in percentage (0-100)
   message: string;
   color: string;
 }
@@ -64,7 +62,6 @@ const AnimatedCircle = ({
   return (
     <View style={{ width: size, height: size }}>
       <Svg width={size} height={size}>
-        {/* Background Circle */}
         <Circle
           stroke="#e5e7eb"
           fill="none"
@@ -73,7 +70,6 @@ const AnimatedCircle = ({
           r={radius}
           strokeWidth={strokeWidth}
         />
-        {/* Progress Circle */}
         <Circle
           stroke={color}
           fill="none"
@@ -110,8 +106,8 @@ const AnimatedScoreText = ({
 
   useEffect(() => {
     const sync = () => setTextValue(derivedValue.value);
-    sync(); // Initial sync
-    const interval = setInterval(sync, 16); // ~60fps poll
+    sync();
+    const interval = setInterval(sync, 16);
     return () => clearInterval(interval);
   }, [derivedValue]);
 
@@ -120,7 +116,7 @@ const AnimatedScoreText = ({
       className="text-6xl font-black" 
       style={{ color }}
     >
-      {textValue}
+      {textValue}%
     </Text>
   );
 };
@@ -133,13 +129,13 @@ export default function DesireQuiz({
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, number>>({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
-  const [finalScore, setFinalScore] = useState(0);
+  const [finalScore, setFinalScore] = useState(0); // Now in percentage
   const [isCalculating, setIsCalculating] = useState(false);
 
   const { colorScheme } = useColorScheme();
   const currentQuestion = quizQuestions[currentQuestionIndex];
   
-  // Calculate the maximum possible score once
+  // Calculate the maximum possible raw score
   const maxPossibleScore = quizQuestions.reduce(
     (acc, q) => acc + Math.max(...q.options.map(o => o.score_value)), 
     0
@@ -167,15 +163,16 @@ export default function DesireQuiz({
   };
 
   const calculateResult = () => {
-    const totalScore = Object.values(selectedAnswers).reduce(
+    const rawScore = Object.values(selectedAnswers).reduce(
       (sum: number, score: number) => sum + score, 
       0
     );
-    setFinalScore(totalScore);
+    const percentageScore = Math.round((rawScore / maxPossibleScore) * 100); // Convert to percentage
+    setFinalScore(percentageScore);
     setQuizSubmitted(true);
     
     if (onQuizComplete) {
-      onQuizComplete(totalScore);
+      onQuizComplete(percentageScore); // Pass percentage to callback
     }
   };
 
@@ -191,7 +188,6 @@ export default function DesireQuiz({
     setSelectedAnswers({});
   };
 
-  // Calculating Screen
   if (isCalculating) {
     return (
       <SafeAreaView className="flex-1">
@@ -208,10 +204,8 @@ export default function DesireQuiz({
     );
   }
 
-  // Results Screen
   if (quizSubmitted) {
     const feedback = getResultFeedback(finalScore);
-    const scorePercentage = (finalScore / maxPossibleScore) * 100;
 
     return (
       <ScrollView 
@@ -219,15 +213,13 @@ export default function DesireQuiz({
         className="px-6 py-8"
       >
         <View className="flex-1 justify-center items-center">
-          {/* Title */}
           <Text className="text-3xl font-bold mb-8 text-center">
             Your Result
           </Text>
           
-          {/* Score Circle */}
           <View className="items-center mb-8">
             <AnimatedCircle
-              progress={scorePercentage}
+              progress={finalScore} // Already in percentage
               size={screenWidth * 0.6}
               strokeWidth={20}
               color={feedback.color}
@@ -238,12 +230,11 @@ export default function DesireQuiz({
                 color={feedback.color} 
               />
               <Text className="text-gray-600 dark:text-gray-300 text-lg mt-2">
-                out of {maxPossibleScore}
+                Your Score
               </Text>
             </View>
           </View>
 
-          {/* Feedback Message */}
           <View 
             className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl p-6 mb-8 border border-gray-200 dark:border-gray-700"
             style={{ borderColor: feedback.color, borderStyle: 'dashed' }}
@@ -253,13 +244,11 @@ export default function DesireQuiz({
             </Text>
           </View>
 
-          {/* Action Buttons */}
           <View className="w-full space-y-4 pb-6">
             <Button 
               onPress={resetQuiz}
               variant="outline"
               size={'lg'}
-              
             >
               <View className="flex-row items-center">
                 <Icon as={RefreshCwIcon} className="w-5 h-5 text-gray-700 dark:text-gray-200 mr-2" />
@@ -274,9 +263,9 @@ export default function DesireQuiz({
               size={'lg'}
               className='mt-4'
             >
-                <Text className="font-semibold">
-                  Get Help Now
-                </Text>
+              <Text className="font-semibold">
+                Get Help Now
+              </Text>
             </Button>
           </View>
         </View>
@@ -284,29 +273,24 @@ export default function DesireQuiz({
     );
   }
 
-  // Quiz Questions Screen
   return (
     <SafeAreaView className='flex-1'>
       <ScrollView 
         contentContainerStyle={{ flexGrow: 1, paddingBottom: 80 }}
         className="px-6 py-8"
       >
-        {/* Progress Section */}
         <View className="mb-8">
           <Text className="text-center text-gray-600 dark:text-gray-300 mb-2">
             Question {currentQuestionIndex + 1} of {quizQuestions.length}
           </Text>
           <Progress value={(currentQuestionIndex + 1) / quizQuestions.length * 100} max={100}/>
-            
         </View>
 
-        {/* Question */}
         <View className="flex-1 justify-center">
           <Text className="text-xl font-bold text-gray-900 dark:text-white mb-8 text-center leading-8">
             {currentQuestion.question_text}
           </Text>
           
-          {/* Options using RadioGroup */}
           <RadioGroup
             value={selectedAnswers[currentQuestion.id]?.toString()}
             onValueChange={(value) => handleOptionSelect(currentQuestion.id, Number(value))}
@@ -315,7 +299,7 @@ export default function DesireQuiz({
             {currentQuestion.options
               .sort((a, b) => a.display_order - b.display_order)
               .map((option, index) => (
-                <View key={index} className="flex-row items-center p-4 ">
+                <View key={index} className="flex-row items-center p-4">
                   <RadioGroupItem 
                     value={option.score_value.toString()} 
                     id={`option-${currentQuestion.id}-${index}`}
@@ -334,7 +318,6 @@ export default function DesireQuiz({
         </View>
       </ScrollView>
       
-      {/* Next Button - Non-absolute for better mobile flow */}
       <View className="px-6 pb-6">
         <Button
           onPress={goToNextQuestion}

@@ -7,6 +7,7 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "env": { "EXPO_PUBLIC_CONVEX_URL": "https://insightful-vulture-707.convex.cloud" },
       "ios": {
         "resourceClass": "m-medium"  
       }
@@ -15,7 +16,12 @@
       "distribution": "internal"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": { "EXPO_PUBLIC_CONVEX_URL": "https://acrobatic-hawk-359.convex.cloud" },
+      "distribution": "store",
+      "ios": {
+        "credentialsSource": "remote"
+      }
     }
   },
   "submit": {

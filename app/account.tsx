@@ -3,7 +3,6 @@ import { View, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useClerk } from '@clerk/clerk-expo';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,11 +11,9 @@ import NetInfo from '@react-native-community/netinfo';
 const UserAccount = () => {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user } = useClerk();
   const [isOnline, setIsOnline] = useState(true);
-  const [firstName, setFirstName] = useState(user?.firstName || '');
-  const [lastName, setLastName] = useState(user?.lastName || '');
-  const [email, setEmail] = useState(user?.primaryEmailAddress?.emailAddress || '');
+  const [firstName, setFirstName] = useState( '');
+  const [lastName, setLastName] = useState('');
 
   // Network state listener
   useEffect(() => {
@@ -33,13 +30,12 @@ const UserAccount = () => {
     }
 
     try {
-      await user?.update({ firstName, lastName });
       Alert.alert('Success', 'Profile updated successfully!');
     } catch (error) {
       console.error('Error updating profile:', error);
       Alert.alert('Error', 'Failed to update profile. Please try again.');
     }
-  }, [isOnline, user, firstName, lastName]);
+  }, [isOnline, firstName, lastName]);
 
   return (
     <View className="flex-1 bg-background">
@@ -70,14 +66,6 @@ const UserAccount = () => {
               value={lastName}
               onChangeText={setLastName}
               placeholder="Enter your last name"
-              className="mb-4"
-            />
-            <Text className="text-base font-semibold text-foreground mb-2">Email</Text>
-            <Input
-              value={email}
-              onChangeText={setEmail}
-              placeholder="Enter your email"
-              editable={false}
               className="mb-4"
             />
             <Button

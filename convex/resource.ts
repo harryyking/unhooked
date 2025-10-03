@@ -19,9 +19,6 @@ export const addAudio = mutation({
   args: {
     storageId: v.id("_storage"), // The ID of the file you just uploaded
     title: v.string(),
-    description: v.optional(v.string()),
-    duration: v.optional(v.number()),
-    url:v.optional(v.string()),
   },
   handler: async (ctx, args) => {
 

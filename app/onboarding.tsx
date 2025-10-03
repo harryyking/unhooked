@@ -1,5 +1,5 @@
 // screens/OnboardingScreen.tsx
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   FlatList,
@@ -8,10 +8,12 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
   Animated,
+  StatusBar,
+  Platform,
 } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Icon } from '@/components/ui/icon';
-import { ArrowRightIcon, CheckIcon, SkipForwardIcon } from 'lucide-react-native';
+import { ArrowRightIcon, CheckIcon } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -26,13 +28,15 @@ interface OnboardingSlide {
   textColor: string;
   subtitleColor: string;
   icon?: string;
+  category?: string;
 }
 
 const slides: OnboardingSlide[] = [
   {
     id: '1',
-    title: 'Hey There! Welcome to Unhooked.',
-    description: 'Ready to ditch old habits and build a stronger, freer you? We\'re here to walk this journey with you, every step of the way.',
+    category: 'WELCOME',
+    title: 'Welcome to Unhooked',
+    description: 'Ready to ditch old habits and build a stronger, freer you? We\'re here to walk this journey with you.',
     backgroundColor: '#FAFAFF',
     accentColor: '#6366F1',
     textColor: '#1F2937',
@@ -41,8 +45,9 @@ const slides: OnboardingSlide[] = [
   },
   {
     id: '2',
-    title: 'Discovering Your True Self',
-    description: 'God has an awesome plan for your life – full of joy, purpose, and real freedom. This is about stepping into that amazing person He made you to be.',
+    category: 'PURPOSE',
+    title: 'Discover Your True Self',
+    description: 'God has an awesome plan for your life – full of joy, purpose, and real freedom.',
     backgroundColor: '#FEF3E2',
     accentColor: '#F59E0B',
     textColor: '#92400E',
@@ -51,8 +56,9 @@ const slides: OnboardingSlide[] = [
   },
   {
     id: '3',
+    category: 'AWARENESS',
     title: 'The Hidden Trap',
-    description: 'Porn might seem harmless, or even "normal," but it\'s actually a sneaky trap. It messes with your mind and pulls you away from real connections.',
+    description: 'Porn might seem harmless, but it\'s actually a sneaky trap that pulls you away from real connections.',
     backgroundColor: '#FEF2F2',
     accentColor: '#EF4444',
     textColor: '#991B1B',
@@ -61,8 +67,9 @@ const slides: OnboardingSlide[] = [
   },
   {
     id: '4',
-    title: 'Fake vs. Real Connections',
-    description: 'God designed relationships to be beautiful and genuine. Porn replaces that with something fake and shallow, making real intimacy harder to find.',
+    category: 'RELATIONSHIPS',
+    title: 'Real Connections Matter',
+    description: 'God designed relationships to be beautiful and genuine. Don\'t settle for something fake and shallow.',
     backgroundColor: '#F0F9FF',
     accentColor: '#0EA5E9',
     textColor: '#0C4A6E',
@@ -71,8 +78,9 @@ const slides: OnboardingSlide[] = [
   },
   {
     id: '5',
-    title: 'Draining Your Inner Strength',
-    description: 'The more you\'re exposed to it, the tougher it gets. It can make you feel numb, less caring, and slowly chip away at your spirit.',
+    category: 'IMPACT',
+    title: 'Protect Your Strength',
+    description: 'The more you\'re exposed to it, the tougher it gets. It can make you feel numb and chip away at your spirit.',
     backgroundColor: '#FDF4FF',
     accentColor: '#A855F7',
     textColor: '#7C2D92',
@@ -81,8 +89,9 @@ const slides: OnboardingSlide[] = [
   },
   {
     id: '6',
-    title: 'The Shame Game',
-    description: 'When you keep things hidden, it often brings on guilt and shame. That feeling can build a wall between you, your friends, and even God.',
+    category: 'FREEDOM',
+    title: 'Break Free from Shame',
+    description: 'Hidden struggles bring guilt and shame. It\'s time to tear down those walls.',
     backgroundColor: '#FEF2F2',
     accentColor: '#EF4444',
     textColor: '#991B1B',
@@ -91,28 +100,9 @@ const slides: OnboardingSlide[] = [
   },
   {
     id: '7',
-    title: 'Broken Connections',
-    description: 'It can really mess with how you connect with people you care about – your family, your friends, and future relationships. It makes true love harder to build.',
-    backgroundColor: '#FEF2F2',
-    accentColor: '#DC2626',
-    textColor: '#991B1B',
-    subtitleColor: '#B91C1C',
-    icon: '💔',
-  },
-  {
-    id: '8',
-    title: 'Never Enough',
-    description: 'Porn promises to satisfy, but it always leaves you feeling empty. You keep wanting more, but it never fills that deep spiritual need inside you.',
-    backgroundColor: '#FEF2F2',
-    accentColor: '#EF4444',
-    textColor: '#991B1B',
-    subtitleColor: '#B91C1C',
-    icon: '🕳️',
-  },
-  {
-    id: '9',
-    title: 'But Hey, There\'s Hope!',
-    description: 'Good news! God\'s grace is HUGE, and His mercies are fresh every single morning. He wants you to be totally free and healed.',
+    category: 'HOPE',
+    title: 'There\'s Always Hope',
+    description: 'Good news! God\'s grace is HUGE. He wants you to be totally free and healed.',
     backgroundColor: '#F0FDF4',
     accentColor: '#10B981',
     textColor: '#065F46',
@@ -120,9 +110,10 @@ const slides: OnboardingSlide[] = [
     icon: '🌅',
   },
   {
-    id: '10',
-    title: 'Your Path to Freedom Starts Now',
-    description: 'Unhooked is your guide to breaking free. We\'ve got a clear, supportive plan built on faith and real accountability to help you win this battle.',
+    id: '8',
+    category: 'YOUR JOURNEY',
+    title: 'Your Path to Freedom',
+    description: 'Unhooked is your guide to breaking free with a clear plan built on faith and real accountability.',
     backgroundColor: '#F0FDF4',
     accentColor: '#059669',
     textColor: '#065F46',
@@ -130,9 +121,10 @@ const slides: OnboardingSlide[] = [
     icon: '🛤️',
   },
   {
-    id: '11',
-    title: 'Daily Check-ins & Awesome Streaks',
-    description: 'Mark your daily victories and watch your streak grow! Seeing those wins keeps you super motivated and strong on your journey.',
+    id: '9',
+    category: 'FEATURES',
+    title: 'Track Your Progress',
+    description: 'Mark daily victories and watch your streak grow! Celebrate every win on your journey.',
     backgroundColor: '#EFF6FF',
     accentColor: '#3B82F6',
     textColor: '#1E40AF',
@@ -140,9 +132,10 @@ const slides: OnboardingSlide[] = [
     icon: '📈',
   },
   {
-    id: '12',
-    title: 'Find Your Crew: The Power of Community',
-    description: 'Connect with other teens who totally get what you\'re going through. Share, pray, and grow together in a safe, judgment-free zone.',
+    id: '10',
+    category: 'COMMUNITY',
+    title: 'Find Your Crew',
+    description: 'Connect with others who get it. Share, pray, and grow together in a safe space.',
     backgroundColor: '#EFF6FF',
     accentColor: '#3B82F6',
     textColor: '#1E40AF',
@@ -150,9 +143,10 @@ const slides: OnboardingSlide[] = [
     icon: '👥',
   },
   {
-    id: '13',
-    title: 'Daily Bible Wisdom & Devotionals',
-    description: 'Power up your spirit every day with God\'s Word. Get scriptures and awesome insights to refresh your mind and guide your steps.',
+    id: '11',
+    category: 'DAILY GROWTH',
+    title: 'Daily Wisdom',
+    description: 'Power up with God\'s Word every day. Get scriptures and insights to guide your steps.',
     backgroundColor: '#EFF6FF',
     accentColor: '#3B82F6',
     textColor: '#1E40AF',
@@ -160,19 +154,10 @@ const slides: OnboardingSlide[] = [
     icon: '📖',
   },
   {
-    id: '14',
-    title: 'Your Accountability Squad',
-    description: 'Invite a trusted friend or mentor to be your accountability partner. It\'s like having a personal cheer squad and extra support whenever you need it!',
-    backgroundColor: '#EFF6FF',
-    accentColor: '#3B82F6',
-    textColor: '#1E40AF',
-    subtitleColor: '#2563EB',
-    icon: '🤝',
-  },
-  {
-    id: '15',
-    title: 'Ready to Live Free in Christ?',
-    description: 'Unhooked is here to help you step into a life of purity, purpose, and real peace. Let\'s do this!',
+    id: '12',
+    category: 'LET\'S BEGIN',
+    title: 'Ready to Live Free?',
+    description: 'Step into a life of purity, purpose, and real peace. Your journey starts now!',
     backgroundColor: '#F0FDF4',
     accentColor: '#10B981',
     textColor: '#065F46',
@@ -181,70 +166,140 @@ const slides: OnboardingSlide[] = [
   },
 ];
 
-
-
-const PaginationDots = ({ 
-  slides, 
-  currentIndex, 
-  onDotPress 
-}: {
-  slides: OnboardingSlide[];
-  currentIndex: number;
-  onDotPress: (index: number) => void;
-}) => {
-  return (
-    <View className="flex-row justify-center mb-8 flex-wrap">
-      {slides.map((_, index) => (
-        <TouchableOpacity
-          key={index}
-          onPress={() => onDotPress(index)}
-          className={`mx-1 mb-1 rounded-full transition-all duration-300 ${
-            index === currentIndex 
-              ? 'w-8 h-2 bg-indigo-500' 
-              : 'w-2 h-2 bg-gray-300'
-          }`}
-        />
-      ))}
-    </View>
-  );
-};
-
 const SlideComponent = ({ item, index }: { item: OnboardingSlide; index: number }) => {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        delay: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 500,
+        delay: 100,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
   return (
     <View 
-      style={{ 
-        width, 
-        height, 
-        // backgroundColor: item.backgroundColor 
-      }}
-      className="justify-center items-center px-8"
+      style={{ width, height: height * 0.75 }}
+      className="justify-center items-center px-6"
     >
-      <View className="flex-1 justify-center items-center max-w-sm">
-        {/* Icon */}
+      <Animated.View 
+        className="flex-1 justify-center items-center max-w-sm w-full"
+        style={{
+          opacity: fadeAnim,
+          transform: [
+            { translateY: slideAnim },
+            { scale: scaleAnim }
+          ],
+        }}
+      >
+        {/* Category Badge */}
+        {item.category && (
+          <View 
+            className="px-3 py-1 rounded-full mb-6"
+            style={{ backgroundColor: item.accentColor + '20' }}
+          >
+            <Text 
+              className="text-xs font-bold tracking-wider"
+              style={{ color: item.accentColor }}
+            >
+              {item.category}
+            </Text>
+          </View>
+        )}
+
+        {/* Icon Container with Shadow */}
         <View 
-          className="w-24 h-24 rounded-full justify-center items-center mb-8 shadow-lg"
-          style={{ backgroundColor: item.accentColor + '15' }}
+          className="w-32 h-32 rounded-3xl justify-center items-center mb-8"
+          style={{ 
+            backgroundColor: 'white',
+            shadowColor: item.accentColor,
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.15,
+            shadowRadius: 16,
+            elevation: 8,
+          }}
         >
-          <Text className="text-5xl">{item.icon}</Text>
+          <Text className="text-6xl">{item.icon}</Text>
         </View>
 
         {/* Content */}
         <View className="items-center">
           <Text 
-            className="text-2xl font-bold text-center mb-6 leading-8"
+            className="text-3xl font-bold text-center mb-4 leading-9"
             style={{ color: item.textColor }}
           >
             {item.title}
           </Text>
           
           <Text 
-            className="text-base text-center leading-6 px-2"
-            style={{ color: item.subtitleColor }}
+            className="text-lg text-center leading-7 px-4"
+            style={{ 
+              color: item.subtitleColor,
+              opacity: 0.9 
+            }}
           >
             {item.description}
           </Text>
         </View>
-      </View>
+      </Animated.View>
+    </View>
+  );
+};
+
+const PaginationDots = ({ 
+  slides, 
+  currentIndex,
+  scrollX 
+}: {
+  slides: OnboardingSlide[];
+  currentIndex: number;
+  scrollX: Animated.Value;
+}) => {
+  return (
+    <View className="flex-row justify-center items-center h-8 mb-6">
+      {slides.map((_, index) => {
+        const inputRange = [(index - 1) * width, index * width, (index + 1) * width];
+        
+        const dotWidth = scrollX.interpolate({
+          inputRange,
+          outputRange: [8, 24, 8],
+          extrapolate: 'clamp',
+        });
+
+        const opacity = scrollX.interpolate({
+          inputRange,
+          outputRange: [0.3, 1, 0.3],
+          extrapolate: 'clamp',
+        });
+
+        return (
+          <Animated.View
+            key={index}
+            className="h-2 bg-indigo-500 rounded-full mx-1"
+            style={{
+              width: dotWidth,
+              opacity,
+            }}
+          />
+        );
+      })}
     </View>
   );
 };
@@ -253,9 +308,36 @@ const OnboardingScreen: React.FC = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
+  const buttonScale = useRef(new Animated.Value(1)).current;
+  const progressWidth = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Animate progress bar
+    Animated.timing(progressWidth, {
+      toValue: ((currentIndex + 1) / slides.length) * 100,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [currentIndex]);
 
   const handleFinishOnboarding = () => {
-    router.replace('/(auth)/sign-up');
+    // Button press animation
+    Animated.sequence([
+      Animated.spring(buttonScale, {
+        toValue: 0.95,
+        friction: 8,
+        tension: 100,
+        useNativeDriver: true,
+      }),
+      Animated.spring(buttonScale, {
+        toValue: 1,
+        friction: 8,
+        tension: 100,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      router.replace('/(auth)/sign-up');
+    });
   };
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -275,16 +357,38 @@ const OnboardingScreen: React.FC = () => {
     handleFinishOnboarding();
   };
 
-  const goToDot = (index: number) => {
-    flatListRef.current?.scrollToIndex({ index, animated: true });
-  };
-
   const isLastSlide = currentIndex === slides.length - 1;
   const currentSlide = slides[currentIndex];
 
   return (
-      <View className="flex-1 ">
-    <SafeAreaView className="flex-1 bg-white">
+    <View className="flex-1 bg-white">
+      <StatusBar barStyle="dark-content" backgroundColor="white" />
+      
+      {/* Progress Bar */}
+      <View className="absolute top-0 left-0 right-0 h-1 bg-gray-100 z-10">
+        <Animated.View
+          className="h-full bg-indigo-500"
+          style={{
+            width: progressWidth.interpolate({
+              inputRange: [0, 100],
+              outputRange: ['0%', '100%'],
+            }),
+          }}
+        />
+      </View>
+
+      <SafeAreaView className="flex-1">
+        {/* Skip Button - Top Right */}
+        {!isLastSlide && (
+          <View className="absolute top-12 right-6 z-10">
+            <TouchableOpacity
+              onPress={skipOnboarding}
+              className="py-2 px-4 rounded-full bg-gray-100/80"
+            >
+              <Text className="text-gray-600 font-semibold">Skip</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Slides */}
         <FlatList
@@ -303,60 +407,57 @@ const OnboardingScreen: React.FC = () => {
           )}
           scrollEventThrottle={16}
           keyExtractor={(item) => item.id}
+          bounces={false}
         />
 
-        {/* Footer Controls */}
-        <View className="px-8 pb-8">
+        {/* Footer */}
+        <View className="px-6 pb-8">
           {/* Pagination Dots */}
           <PaginationDots 
             slides={slides}
             currentIndex={currentIndex}
-            onDotPress={goToDot}
+            scrollX={scrollX}
           />
 
-          {/* Navigation Buttons */}
-          <View className="flex-row justify-between items-center">
-            {/* Skip Button */}
-            {!isLastSlide && (
-              <TouchableOpacity
-                onPress={skipOnboarding}
-                className="flex-row items-center py-3 px-6 rounded-full bg-gray-100"
-              >
-                <Icon as={SkipForwardIcon} className="w-4 h-4 text-gray-600 mr-2" />
-                <Text className="text-gray-600 font-semibold">Skip</Text>
-              </TouchableOpacity>
-            )}
-
-            {/* Spacer when no skip button */}
-            {isLastSlide && <View />}
-
-            {/* Next/Finish Button */}
+          {/* Main CTA Button */}
+          <Animated.View
+            style={{
+              transform: [{ scale: buttonScale }],
+            }}
+          >
             <TouchableOpacity
               onPress={goToNextSlide}
-              className="flex-row items-center py-4 px-8 rounded-full shadow-lg"
+              activeOpacity={0.8}
+              className="w-full py-4 rounded-2xl items-center justify-center flex-row"
               style={{ 
                 backgroundColor: currentSlide.accentColor,
-                elevation: 4,
                 shadowColor: currentSlide.accentColor,
-                shadowOffset: { width: 0, height: 4 },
+                shadowOffset: { width: 0, height: 6 },
                 shadowOpacity: 0.3,
-                shadowRadius: 8,
+                shadowRadius: 12,
+                elevation: 8,
               }}
             >
-              <Text className="text-white font-bold mr-2 text-base">
-                {isLastSlide ? 'Get Started' : 'Next'}
+              <Text className="text-white font-bold text-lg mr-2">
+                {isLastSlide ? 'Get Started' : 'Continue'}
               </Text>
               <Icon 
                 as={isLastSlide ? CheckIcon : ArrowRightIcon} 
                 className="w-5 h-5 text-white" 
               />
             </TouchableOpacity>
+          </Animated.View>
+
+          {/* Step Counter */}
+          <View className="mt-4 items-center">
+            <Text className="text-gray-400 text-sm">
+              {currentIndex + 1} of {slides.length}
+            </Text>
           </View>
         </View>
-    </SafeAreaView>
-      </View>
+      </SafeAreaView>
+    </View>
   );
 };
 
-
-export default OnboardingScreen
+export default OnboardingScreen;

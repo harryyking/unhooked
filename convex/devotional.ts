@@ -1,8 +1,7 @@
 import { v } from 'convex/values';
-import { query, mutation, action, internalQuery, ActionCtx } from './_generated/server'; // Add internalQuery if you want private queries
-import { api } from './_generated/api'; // For referencing functions
+import { query, mutation, action, internalQuery, ActionCtx } from './_generated/server';
+import { api } from './_generated/api';
 import { Id } from './_generated/dataModel';
-import axios from 'axios';
 
 const API_KEY = process.env.API_BIBLE_KEY;
 
@@ -22,7 +21,7 @@ const bookMap: { [key: string]: string } = {
   '1 CHRONICLES': '1CH',
   '2 CHRONICLES': '2CH',
   EZRA: 'EZR',
-  NEHEMIAH: 'NEH',
+  NEHEIMAH: 'NEH',
   ESTHER: 'EST',
   JOB: 'JOB',
   PSALMS: 'PSA',
@@ -187,21 +186,28 @@ export const getDailyVerseForUser = action({
     const isRange = verseId.includes('-');
     const endpoint = isRange ? 'passages' : 'verses';
 
-    // Call the external API
-    const response = await axios.get(
+    // Use native fetch instead of axios (built-in, no extra dependency)
+    const response = await fetch(
       `https://api.scripture.api.bible/v1/bibles/${bibleId}/${endpoint}/${verseId}?content-type=text&include-chapter-numbers=false&include-verse-numbers=false`,
       {
-        headers: { 'api-key': API_KEY },
+        method: 'GET',
+        headers: {
+          'api-key': API_KEY!,
+        },
       }
     );
 
-    const verseData = response.data.data;
-    if (!verseData) {
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+    }
+
+    const verseData = await response.json();
+    if (!verseData.data) {
       throw new Error('Verse not found');
     }
 
     return {
-      verse: verseData.content,
+      verse: verseData.data.content,
       reference: dailyDevotional.verses,
     };
   },

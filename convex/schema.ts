@@ -110,4 +110,5 @@ export default defineSchema({
     title: v.string(),
     storageId: v.id('_storage'), 
   })
+  
 });
