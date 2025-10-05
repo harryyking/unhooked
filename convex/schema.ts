@@ -17,36 +17,6 @@ export default defineSchema({
     .index('by_tokenIdentifier', ['tokenIdentifier'])
     .index('by_email', ['email']),
 
-  accounts: defineTable({
-    userId: v.id("users"),
-    provider: v.string(),
-    providerAccountId: v.string(),
-    accessToken: v.optional(v.string()),
-    refreshToken: v.optional(v.string()),
-    expiresAt: v.optional(v.number()),
-    tokenType: v.optional(v.string()),
-    scope: v.optional(v.string()),
-    idToken: v.optional(v.string()),
-    sessionState: v.optional(v.string()),
-  })
-    .index('by_userId', ['userId'])
-    .index('by_provider_providerAccountId', ['provider', 'providerAccountId']),
-
-  sessions: defineTable({
-    userId: v.id("users"),
-    expiresAt: v.number(),
-    ipAddress: v.optional(v.string()),
-    userAgent: v.optional(v.string()),
-  })
-    .index('by_userId', ['userId']),
-
-  verification: defineTable({
-    identifier: v.string(),
-    token: v.string(),
-    expiresAt: v.number(),
-  })
-    .index('by_identifier_token', ['identifier', 'token']),
-
   // Your other tables
   progress: defineTable({
     userId: v.id("users"),

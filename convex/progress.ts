@@ -3,6 +3,7 @@ import { query, mutation } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { api } from "./_generated/api";
 import { getUserByTokenIdentifier } from "./invite";
+import { authComponent } from "./auth";
 
 /**
  * Logs or updates the daily progress for the authenticated user.
@@ -32,7 +33,7 @@ export const logDailyCheckin = mutation({
       throw new Error("User not authenticated.");
     }
 
-    const userId = await getUserByTokenIdentifier(ctx, identity.subject)
+    const userId = await getUserByTokenIdentifier(ctx, identity.email)  //representing userId as tokenIdentifier 
     if (!userId) throw new Error ('UserId not found')
     const { logDate, clean } = args;
 
@@ -93,7 +94,7 @@ export const getByDate = query({
     if (!identity) {
       return null;
     }
-    const userId = await getUserByTokenIdentifier(ctx, identity.subject)
+    const userId = await getUserByTokenIdentifier(ctx, identity.email)
     if(!userId) throw new Error('UserId not found')
     return await ctx.db
       .query("progress")
@@ -114,7 +115,7 @@ export const getWeeklyLogs = query({
     if (!identity) {
       return [];
     }
-    const userId = await getUserByTokenIdentifier(ctx, identity.subject)
+    const userId = await getUserByTokenIdentifier(ctx, identity.email)
     if(!userId) throw new Error('UserId not found')
 
     // Get all logs for the user within the date range
@@ -144,7 +145,7 @@ export const getCurrentStreak = query({
       return { streak: 0 };
     }
 
-    const userId = await getUserByTokenIdentifier(ctx, identity.subject)
+    const userId = await getUserByTokenIdentifier(ctx, identity.email)
     if (!userId) throw new Error('UserId not found')
 
     // Get the most recent log
@@ -183,7 +184,7 @@ export const getRecentProgress = query({
     if (!identity) {
       return [];
     }
-    const userId = await getUserByTokenIdentifier(ctx, identity.subject)
+    const userId = await getUserByTokenIdentifier(ctx, identity.email)
     if(!userId) throw new Error('UserId not found')
 
 
@@ -205,7 +206,7 @@ export const getLongestStreak = query({
       return { longestStreak: 0 };
     }
 
-    const userId = await getUserByTokenIdentifier(ctx, identity.subject)
+    const userId = await getUserByTokenIdentifier(ctx, identity.tokenIdentifier)
     if(!userId) throw new Error('UserId not found')
 
     const allLogs = await ctx.db
@@ -240,7 +241,7 @@ export const getStats = query({
       };
     }
 
-     const userId = await getUserByTokenIdentifier(ctx, identity.subject)
+     const userId = await getUserByTokenIdentifier(ctx, identity.email)
     if(!userId) throw new Error('UserId not found')
 
     const allLogs = await ctx.db

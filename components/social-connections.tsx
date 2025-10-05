@@ -1,7 +1,5 @@
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useColorScheme } from 'nativewind';
@@ -9,25 +7,10 @@ import * as React from 'react';
 import { Text } from './ui/text';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Alert, Image, Platform, View, type ImageSourcePropType } from 'react-native';
-import * as AuthSession from 'expo-auth-session'; // Add for redirect URI
+import * as AuthSession from 'expo-auth-session';
 import { authClient } from '@/lib/auth-client';
-import {
-  GoogleSignin,
-  GoogleSigninButton,
-} from '@react-native-google-signin/google-signin';
-
-GoogleSignin.configure({
-  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID, // From Google Console (Web client)
-  offlineAccess: true, // Optional for refresh tokens
-  hostedDomain: '', // Optional: restrict to domain
-  forceCodeForRefreshToken: true, // Optional: force refresh token
-  accountName: '', // Optional: pre-fill account
-  iosClientId: process.env.GOOGLE_CLIENT_IOS_ID, // iOS Client ID
-  googleServicePlistPath: '', // iOS plist path (auto if using Expo config plugin)
-  openIdRealm: '', // Optional
-  profileImageSize: 120, // Optional
-});
-
+import { debugSessionStorage } from '@/lib/secure';
+import * as crypto from 'expo-crypto';  // Add for nonce
 
 const SOCIAL_CONNECTION_STRATEGIES: {
   type: 'google' | 'apple';
@@ -52,142 +35,118 @@ const SOCIAL_CONNECTION_STRATEGIES: {
 export function SocialConnections() {
   useWarmUpBrowser();
   const { colorScheme } = useColorScheme();
-  const createOrUpdateUser = useMutation(api.user.createOrUpdateUser);
 
   const handleAppleSignIn = async () => {
     try {
-      // Native Apple Sign In (iOS only)
       if (Platform.OS !== 'ios') {
         Alert.alert('Apple Sign In', 'Only available on iOS');
         return;
       }
+
+      // Generate nonce for security
+      const rawState = Math.random().toString(36).substring(7);
+      const nonce = await crypto.digestStringAsync(
+        crypto.CryptoDigestAlgorithm.SHA256,
+        rawState
+      );
 
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
-        state: Math.random().toString(36).substring(7),
+        nonce,  // Pass nonce
+        state: rawState,  // Also pass state for CSRF
       });
 
-      console.log(credential)
+      console.log('Native credential:', credential);
 
       const { identityToken } = credential;
       if (!identityToken) {
-        throw new Error('Apple Sign In failed: No identity token returned');
+        throw new Error('No identity token returned');
       }
 
-      const redirectUrl = AuthSession.makeRedirectUri({
-        scheme: 'unhooked', // Matches your app.json scheme
-        path: 'auth',
-      });
+      console.log('Sending token to Better Auth (length):', identityToken.length);
 
-      // Sign in via Better Auth
+      // Pass token to Better Auth (headless, no redirect)
       const result = await authClient.signIn.social({
         provider: 'apple',
-        idToken: { token: identityToken },
-        callbackURL: redirectUrl, // Use deep link for native
+        idToken: { token: identityToken, nonce },  // Include nonce
+        callbackURL: '/(tabs)/home',  // For post-auth navigation
       });
 
-      if (result.data && 'user' in result.data) {
-        const userData = result.data.user;
-        const userName = credential.fullName?.givenName || userData.name || 'Anonymous';
-        const userEmail = credential.email || userData.email;
-        const tokenIdentifer = result.data.token
+      console.log('Better Auth result:', JSON.stringify(result, null, 2));  // Enhanced debug
 
-        await createOrUpdateUser({
-          name: userName,
-          email: userEmail,
-          tokenIdentifier: tokenIdentifer!
-        }).catch((error) => {
-          console.error('Failed to sync user to Convex:', error);
-        });
+      await debugSessionStorage();  // Debug log
+
+      // Refetch session to confirm
+      const session = await authClient.getSession();
+      console.log('Session after Apple sign-in:', session ? 'Valid' : 'None');
+
+      if (result.error || !session) {
+        console.error('Apple sign-in error:', result.error);
+        Alert.alert('Apple Sign In Failed', result.error?.message || 'No session created—check server logs');
       } else {
-        console.log('No user data in result; using credential fallback if available');
-        // Fallback for Apple (only on first sign-in)
-        if (credential.fullName || credential.email) {
-          await createOrUpdateUser({
-            name: credential.fullName?.givenName || 'Anonymous',
-            email: credential.email!,
-            tokenIdentifier: undefined
-          }).catch((error) => {
-            console.error('Failed to sync user to Convex:', error);
-          });
-        }
+        router.replace('/(tabs)/home');
       }
-      // Redirect on success
-      router.replace('/(tabs)/home');
     } catch (err: any) {
       console.error('Apple sign-in failed:', err);
       let errorMessage = 'An unexpected error occurred';
-      if (err.code === 'ERR_CANCELED') {
-        errorMessage = 'Sign in was canceled';
-      } else if (err.message?.includes('Sign-up not completed') || err.message?.includes('not completed')) {
-        errorMessage = 'Sign up could not be completed. Please check your setup.';
-      } else if (err.message?.includes('redirect_uri_mismatch') || err.message?.includes('redirect')) {
-        errorMessage = 'Redirect configuration error. Check your app scheme and OAuth settings.';
-      } else if (err.message?.includes('invalid_client') || err.message?.includes('client')) {
-        errorMessage = 'Apple client credentials invalid. Check env vars in Convex dashboard.';
-      }
+      if (err.code === 'ERR_CANCELED') errorMessage = 'Sign in was canceled';
+      else if (err.message?.includes('not completed')) errorMessage = 'Sign up could not be completed.';
+      else if (err.message?.includes('redirect_uri_mismatch')) errorMessage = 'Redirect config error—check scheme.';
+      else if (err.message?.includes('invalid_client')) errorMessage = 'Client credentials invalid—check env vars.';
       Alert.alert('Apple Sign In Error', errorMessage);
     }
   };
 
   const handleGoogleSignIn = async () => {
     try {
-      await GoogleSignin.hasPlayServices();
-      const userInfo = await GoogleSignin.signIn();
-
-      if (!userInfo.data?.idToken) {
-        throw new Error('Google Sign In failed: No ID token returned');
-      }
-
       const redirectUrl = AuthSession.makeRedirectUri({
-        scheme: 'unhooked', // Matches your app.json scheme
+        scheme: 'unhooked',
         path: 'auth',
       });
 
-      // Google: Web-based OAuth with explicit redirect
+      // Google redirect flow
       const result = await authClient.signIn.social({
         provider: 'google',
-        idToken: {token: userInfo.data.idToken},
-        callbackURL: redirectUrl, // Essential for native redirect
+        callbackURL: redirectUrl,  // Use redirectUrl here too
       });
 
-      // Sync to Convex on success
-      if (result.data && 'user' in result.data) {
-        const userData = result.data.user;
-        const userName = userData.name || 'Anonymous';
-        const userEmail =  userData.email;
-        const tokenIdentifer = result.data.token
+      console.log('Initial Google result:', JSON.stringify(result, null, 2));  // Debug
 
-        await createOrUpdateUser({
-          name: userName,
-          email: userEmail,
-          tokenIdentifier: tokenIdentifer
-        }).catch((error) => {
-          console.error('Failed to sync user to Convex:', error);
-        });
-      } 
-      // Redirect on success
-      router.replace('/(tabs)/home');
+      // Handle auth URL if returned
+      if (result.data?.url) {
+        const authResult = await WebBrowser.openAuthSessionAsync(result.data.url, redirectUrl);
+        if (authResult.type !== 'success') {
+          throw new Error(`Auth session failed: ${authResult.type}`);
+        }
+
+        // Refetch session after successful redirect
+        const session = await authClient.getSession();
+        console.log('Session after Google redirect:', session ? 'Valid' : 'None');
+      }
+
+      await debugSessionStorage();  // Debug log
+
+      const finalSession = await authClient.getSession();  // Final check
+      if (result.error || !finalSession) {
+        console.error('Google sign-in error:', result.error);
+        Alert.alert('Google Sign In Failed', result.error?.message || 'No session created—check server logs');
+      } else {
+        router.replace('/(tabs)/home');
+      }
     } catch (err: any) {
       console.error('Google sign-in failed:', err);
       let errorMessage = 'An unexpected error occurred';
-      if (err.code === 'ERR_CANCELED') {
-        errorMessage = 'Sign in was canceled';
-      } else if (err.message?.includes('Sign-up not completed') || err.message?.includes('not completed')) {
-        errorMessage = 'Sign up could not be completed. Please check your setup.';
-      } else if (err.message?.includes('redirect_uri_mismatch') || err.message?.includes('redirect')) {
-        errorMessage = 'Redirect configuration error. Check your app scheme and OAuth settings.';
-      } else if (err.message?.includes('invalid_client') || err.message?.includes('client')) {
-        errorMessage = 'Google client credentials invalid. Check env vars in Convex dashboard.';
-      }
+      if (err.code === 'ERR_CANCELED') errorMessage = 'Sign in was canceled';
+      else if (err.message?.includes('not completed')) errorMessage = 'Sign up could not be completed.';
+      else if (err.message?.includes('redirect_uri_mismatch')) errorMessage = 'Redirect config error—check scheme.';
+      else if (err.message?.includes('invalid_client')) errorMessage = 'Client credentials invalid—check env vars.';
       Alert.alert('Google Sign In Error', errorMessage);
     }
   };
 
-  // Filter strategies (Apple only on iOS)
   const filteredStrategies = SOCIAL_CONNECTION_STRATEGIES.filter(
     (strategy) => strategy.type !== 'apple' || Platform.OS === 'ios'
   );

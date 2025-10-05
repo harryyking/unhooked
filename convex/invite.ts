@@ -1,6 +1,6 @@
 // convex/invite.ts
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { nanoid } from 'nanoid';
 
@@ -8,12 +8,10 @@ import { nanoid } from 'nanoid';
  * Helper to get Convex user ID from auth identity (works in both queries and mutations).
  * Uses generic Ctx for broader compatibility.
  */
-export async function getUserByTokenIdentifier(ctx: any, tokenIdentifier: string): Promise<Id<"users"> | null> {
-  const user = await ctx.db
-    .query('users')
-    .withIndex('by_tokenIdentifier', (q: any) => q.eq("tokenIdentifier", tokenIdentifier))
-    .first();
-  return user ? user._id : null;
+export async function getUserByTokenIdentifier(ctx: QueryCtx | MutationCtx, email: string | undefined): Promise<Id<"users">> {
+  const user = await ctx.db.query('users').withIndex('by_email', (q) => q.eq("email", email)).first();
+  if (!user) throw new Error('User not found by tokenIdentifier');
+  return user._id;
 }
 
 /**
@@ -28,7 +26,7 @@ export const generateInvite = mutation({
       throw new Error("User not authenticated.");
     }
 
-    const tokenIdentifier = identity.tokenIdentifier || identity.subject;
+    const tokenIdentifier = identity.tokenIdentifier;
     if (!tokenIdentifier) {
       throw new Error("No valid user identifier found.");
     }
@@ -85,23 +83,14 @@ export const redeemInvite = mutation({
       throw new Error("User not authenticated.");
     }
 
-    const tokenIdentifier = identity.tokenIdentifier || identity.subject;
-    if (!tokenIdentifier) {
+    const userEmail = identity.email;
+    if (!userEmail) {
       throw new Error("No valid user identifier found.");
     }
 
-    let userId = await getUserByTokenIdentifier(ctx, tokenIdentifier);
+    let userId = await getUserByTokenIdentifier(ctx, userEmail);
     if (!userId) {
-      // Create user if not found
-      userId = await ctx.db.insert("users", {
-        tokenIdentifier,
-        name: identity.name || "Anonymous",
-        email: identity.email || undefined,
-        avatarUrlId: undefined,
-        preferredBibleVersion: undefined,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      });
+     return null
     }
 
     // Find invite by code (using index for efficiency)
@@ -169,7 +158,7 @@ export const getPartnershipUsersWithStreaks = query({
       return [];
     }
 
-    const tokenIdentifier = identity.tokenIdentifier || identity.subject;
+    const tokenIdentifier = identity.tokenIdentifier;
     if (!tokenIdentifier) {
       return [];
     }

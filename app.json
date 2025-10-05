@@ -29,7 +29,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.harryking.unhooked"
     },
     "web": {
       "bundler": "metro",
@@ -40,19 +41,14 @@
       "expo-router",
       "expo-secure-store",
       "expo-web-browser",
-      ["expo-apple-authentication"],
       [
-        "@react-native-google-signin/google-signin",
-        {
-          "iosUrlScheme": "com.googleusercontent.apps.339149207199-l4jm3qo4p0move9m56bn2u4689duh037"
-        }
+        "expo-apple-authentication"
       ],
       [
         "expo-notifications",
         {
           "color": "#ffffff"
         }
-        
       ],
       [
         "expo-av",
@@ -61,11 +57,11 @@
         }
       ]
     ],
-
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
+      "EXPO_PUBLIC_CONVEX_SITE_URL": "https://insightful-vulture-707.convex.site",
       "router": {},
       "eas": {
         "projectId": "bd0f805e-e36c-479c-b76c-041d24e8a602"

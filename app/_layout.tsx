@@ -10,10 +10,17 @@ import { useColorScheme } from 'nativewind';
 import * as React from 'react';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
-import { ConvexBetterAuthProvider,  } from "@convex-dev/better-auth/react"; 
-import { authClient } from "@/lib/auth-client"; 
-import { Alert, Platform, View } from 'react-native';
-import { Authenticated, AuthLoading, ConvexReactClient, Unauthenticated } from 'convex/react';
+import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react';
+import { authClient } from '@/lib/auth-client';
+import { ActivityIndicator, Alert, AppState, Platform, View } from 'react-native';
+import {
+  Authenticated,
+  AuthLoading,
+  ConvexReactClient,
+  Unauthenticated,
+  useConvexAuth,
+} from 'convex/react';
+import { debugSessionStorage } from '@/lib/secure';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -36,7 +43,7 @@ async function setupNotificationChannel() {
 // Global notification handler
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true, 
+    shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
     shouldShowBanner: true,
@@ -56,30 +63,57 @@ const REMINDER_TIMES = [
 ];
 
 function Routes() {
+  const { isAuthenticated: convexAuth, isLoading: convexLoading } = useConvexAuth();
+  const { data: session, isPending: sessionLoading } = authClient.useSession();  // Better Auth session from SecureStore
+
+  const isLoading = convexLoading || sessionLoading;
+  const isAuthenticated =  convexAuth;
+
+
+  console.log('Auth debug:', { isAuthenticated, isLoading });
   React.useEffect(() => {
     SplashScreen.hideAsync();
   }, []);
 
+
+  React.useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        // Re-fetch to trigger validation
+        void authClient.getSession();
+      }
+    });
+
+    return () => subscription?.remove();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <View className="flex-1 items-center justify-center bg-background">
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
   return (
-    <>
-      <Unauthenticated>
-        <Stack>
-          {/* Screens only shown when the user is NOT signed in */}
-          <Stack.Screen name="index" options={{headerShown: false}} />
-          <Stack.Screen name="quizzes" options={{headerShown: false}} />
-          <Stack.Screen name="onboarding" options={{headerShown: false}} />
-          <Stack.Screen name="(auth)/sign-up" options={SIGN_UP_SCREEN_OPTIONS} />
-        </Stack>
-      </Unauthenticated>
-      <Authenticated>
-        <Stack>
-          {/* Screens only shown when the user IS signed in */}
-          <Stack.Screen name="(tabs)" options={{headerShown: false}} />
-          <Stack.Screen name="account" options={{headerShown: false}} />
-          <Stack.Screen name="prayer-session" options={{headerShown: false}} />
-        </Stack>
-      </Authenticated>
-    </>
+    <Stack>
+      {/* Screens only shown when the user is NOT signed in */}
+      <Stack.Protected guard={!isAuthenticated}>
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="quizzes" options={{ headerShown: false }} />
+        <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)/sign-up" options={SIGN_UP_SCREEN_OPTIONS} />
+      </Stack.Protected>
+
+      {/* Protected authenticated screens */}
+      <Stack.Protected
+        guard={isAuthenticated} // Use Convex auth state
+      >
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="account" options={{ headerShown: false }} />
+        <Stack.Screen name="prayer-session" options={{ headerShown: false }} />
+      </Stack.Protected>
+    </Stack>
   );
 }
 
@@ -118,7 +152,10 @@ export async function requestNotificationPermissions() {
   }
 
   if (finalStatus !== 'granted') {
-    Alert.alert('Permission Denied', 'Notifications are required for reminders. Please enable them in settings.');
+    Alert.alert(
+      'Permission Denied',
+      'Notifications are required for reminders. Please enable them in settings.'
+    );
     return false;
   }
 
@@ -143,8 +180,8 @@ async function scheduleDailyReminders() {
         hour: time.hour,
         minute: time.minute,
         repeats: true, // Repeat daily
-        channelId:  Platform.OS === 'android' ? 'reminders' : undefined,
-        type: Notifications.SchedulableTriggerInputTypes.CALENDAR
+        channelId: Platform.OS === 'android' ? 'reminders' : undefined,
+        type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
       },
     });
     scheduledIds.push(notificationId);
@@ -189,20 +226,22 @@ export default function RootLayout() {
     () =>
       new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
         // Optionally pause queries until the user is authenticated
-        expectAuth: true, 
-        unsavedChangesWarning: false, 
+        expectAuth: true,
+        unsavedChangesWarning: false,
       }),
     []
   );
 
   // Global listeners and initial check for reminders
   React.useEffect(() => {
-    const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('Notification tapped:', response);
-      Alert.alert('Check-In', 'Time to reflect on your recovery journey!');
-    });
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        console.log('Notification tapped:', response);
+        Alert.alert('Check-In', 'Time to reflect on your recovery journey!');
+      }
+    );
 
-    const receivedSubscription = Notifications.addNotificationReceivedListener(notification => {
+    const receivedSubscription = Notifications.addNotificationReceivedListener((notification) => {
       console.log('Notification received in foreground:', notification);
     });
 
@@ -216,6 +255,7 @@ export default function RootLayout() {
   }, []);
 
   return (
+    <React.StrictMode>
       <ConvexBetterAuthProvider client={convex} authClient={authClient}>
         <ThemeProvider value={NAV_THEME[colorScheme ?? 'light']}>
           <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
@@ -223,5 +263,9 @@ export default function RootLayout() {
           <PortalHost />
         </ThemeProvider>
       </ConvexBetterAuthProvider>
+    </React.StrictMode>
   );
 }
+
+
+debugSessionStorage()
