@@ -1,7 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
-import { getUserByTokenIdentifier } from "./invite";
 
 /**
  * Creates a new story in the database.
@@ -21,7 +20,7 @@ export const createStory = mutation({
 
     const user = await ctx.db
     .query("users")
-    .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", identity.subject))
+    .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.tokenIdentifier))
     .unique();
 
   if (!user) {
@@ -107,7 +106,7 @@ export const upvoteStory = mutation({
 
     const user = await ctx.db
     .query("users")
-    .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", identity.subject))
+    .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
     .unique();
 
   if (!user) {

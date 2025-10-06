@@ -1,9 +1,7 @@
+// convex/progress.ts
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
-import { api } from "./_generated/api";
-import { getUserByTokenIdentifier } from "./invite";
-import { authComponent } from "./auth";
+import { getUserByClerkId } from "./user";  // Import plain helper for user resolution
 
 /**
  * Logs or updates the daily progress for the authenticated user.
@@ -11,31 +9,36 @@ import { authComponent } from "./auth";
  */
 export const logDailyCheckin = mutation({
   args: {
-    logDate: v.string(),
+    logDate: v.string(),  // e.g., "2025-10-06"
     clean: v.boolean(),
     journal: v.optional(v.string()),
     mood: v.optional(
       v.union(
         v.literal("Joyful"),
         v.literal("Hopeful"),
-        v.literal("Tempted"), 
+        v.literal("Tempted"),
         v.literal("Struggling"),
         v.literal("Peaceful")
       )
     ),
     triggers: v.optional(v.array(v.string())),
-    createdAt: v.number(),
-    updatedAt: v.number(),
   },
-  async handler(ctx, args) {
+  handler: async (ctx, { logDate, clean, journal, mood, triggers }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("User not authenticated.");
     }
 
-    const userId = await getUserByTokenIdentifier(ctx, identity.email)  //representing userId as tokenIdentifier 
-    if (!userId) throw new Error ('UserId not found')
-    const { logDate, clean } = args;
+    const clerkId = identity.subject as string;
+    if (!clerkId) {
+      throw new Error("No valid Clerk ID found in auth token.");
+    }
+
+    // Get user using plain helper (assumes created via webhook/login)
+    const userId = await getUserByClerkId(ctx, clerkId);
+    if (!userId) {
+      throw new Error("User ID not found.");
+    }
 
     // Check for yesterday's log to calculate streak
     const yesterday = new Date(logDate);
@@ -45,7 +48,7 @@ export const logDailyCheckin = mutation({
     const yesterdayLog = await ctx.db
       .query("progress")
       .withIndex("by_userId_logDate", (q) =>
-        q.eq("userId", userId).eq("logDate", yesterdayStr)
+        q.eq("userId", userId._id).eq("logDate", yesterdayStr)
       )
       .unique();
 
@@ -58,25 +61,30 @@ export const logDailyCheckin = mutation({
     const existingLog = await ctx.db
       .query("progress")
       .withIndex("by_userId_logDate", (q) =>
-        q.eq("userId", userId).eq("logDate", logDate)
+        q.eq("userId", userId._id).eq("logDate", logDate)
       )
       .unique();
 
+    const now = Date.now();
+    const baseData = {
+      clean,
+      journal,
+      mood,
+      triggers,
+      streak: currentStreak,
+      updatedAt: now,
+    };
+
     if (existingLog) {
       // Update today's existing log
-      await ctx.db.patch(existingLog._id, {
-        ...args,
-        streak: currentStreak,
-        updatedAt: Date.now(),
-      });
+      await ctx.db.patch(existingLog._id, baseData);
     } else {
       // Create a new log for today
       await ctx.db.insert("progress", {
-        userId: userId,
-        streak: currentStreak,
-        ...args,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
+        userId: userId._id,
+        logDate,
+        createdAt: now,
+        ...baseData,
       });
     }
 
@@ -88,18 +96,28 @@ export const logDailyCheckin = mutation({
  * Gets the progress log for the authenticated user for a specific date.
  */
 export const getByDate = query({
-  args: { logDate: v.string() }, // e.g., "2025-09-03"
-  async handler(ctx, { logDate }) {
+  args: { logDate: v.string() }, // e.g., "2025-10-06"
+  handler: async (ctx, { logDate }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return null;
     }
-    const userId = await getUserByTokenIdentifier(ctx, identity.email)
-    if(!userId) throw new Error('UserId not found')
+
+    const clerkId = identity.subject as string;
+    if (!clerkId) {
+      return null;
+    }
+
+    // Get user using plain helper
+    const userId = await getUserByClerkId(ctx, clerkId);
+    if (!userId) {
+      return null;
+    }
+
     return await ctx.db
       .query("progress")
       .withIndex("by_userId_logDate", (q) =>
-        q.eq("userId", userId).eq("logDate", logDate)
+        q.eq("userId", userId._id).eq("logDate", logDate)
       )
       .unique();
   },
@@ -110,13 +128,22 @@ export const getByDate = query({
  */
 export const getWeeklyLogs = query({
   args: { dates: v.array(v.string()) },
-  async handler(ctx, { dates }) {
+  handler: async (ctx, { dates }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return [];
     }
-    const userId = await getUserByTokenIdentifier(ctx, identity.email)
-    if(!userId) throw new Error('UserId not found')
+
+    const clerkId = identity.subject as string;
+    if (!clerkId) {
+      return [];
+    }
+
+    // Get user using plain helper
+    const userId = await getUserByClerkId(ctx, clerkId);
+    if (!userId) {
+      return [];
+    }
 
     // Get all logs for the user within the date range
     const logs = await Promise.all(
@@ -124,14 +151,14 @@ export const getWeeklyLogs = query({
         return await ctx.db
           .query("progress")
           .withIndex("by_userId_logDate", (q) =>
-            q.eq("userId", userId).eq("logDate", date)
+            q.eq("userId", userId._id).eq("logDate", date)
           )
           .unique();
       })
     );
 
     // Filter out null results and return only the found logs
-    return logs.filter((log) => log !== null);
+    return logs.filter((log): log is NonNullable<typeof log> => log !== null);
   },
 });
 
@@ -139,19 +166,27 @@ export const getWeeklyLogs = query({
  * Gets the most recent progress entry to display the current streak.
  */
 export const getCurrentStreak = query({
-  async handler(ctx) {
+  handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return { streak: 0 };
     }
 
-    const userId = await getUserByTokenIdentifier(ctx, identity.email)
-    if (!userId) throw new Error('UserId not found')
+    const clerkId = identity.subject as string;
+    if (!clerkId) {
+      return { streak: 0 };
+    }
+
+    // Get user using plain helper
+    const userId = await getUserByClerkId(ctx, clerkId);
+    if (!userId) {
+      return { streak: 0 };
+    }
 
     // Get the most recent log
     const lastLog = await ctx.db
       .query("progress")
-      .withIndex("by_userId_logDate", (q) => q.eq("userId", userId))
+      .withIndex("by_userId_logDate", (q) => q.eq("userId", userId._id))
       .order("desc")
       .first();
 
@@ -159,10 +194,10 @@ export const getCurrentStreak = query({
       return { streak: 0 };
     }
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split("T")[0];
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    const yesterdayStr = yesterday.toISOString().split("T")[0];
 
     // If the last log is from today or yesterday, return its streak
     // Otherwise, the streak has been broken
@@ -179,18 +214,26 @@ export const getCurrentStreak = query({
  */
 export const getRecentProgress = query({
   args: { limit: v.optional(v.number()) },
-  async handler(ctx, { limit = 30 }) {
+  handler: async (ctx, { limit = 30 }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return [];
     }
-    const userId = await getUserByTokenIdentifier(ctx, identity.email)
-    if(!userId) throw new Error('UserId not found')
 
+    const clerkId = identity.subject as string;
+    if (!clerkId) {
+      return [];
+    }
+
+    // Get user using plain helper
+    const userId = await getUserByClerkId(ctx, clerkId);
+    if (!userId) {
+      return [];
+    }
 
     return await ctx.db
       .query("progress")
-      .withIndex("by_userId_logDate", (q) => q.eq("userId", userId))
+      .withIndex("by_userId_logDate", (q) => q.eq("userId", userId._id))
       .order("desc")
       .take(limit);
   },
@@ -200,18 +243,26 @@ export const getRecentProgress = query({
  * Gets the longest streak ever achieved by the user.
  */
 export const getLongestStreak = query({
-  async handler(ctx) {
+  handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return { longestStreak: 0 };
     }
 
-    const userId = await getUserByTokenIdentifier(ctx, identity.tokenIdentifier)
-    if(!userId) throw new Error('UserId not found')
+    const clerkId = identity.subject as string;
+    if (!clerkId) {
+      return { longestStreak: 0 };
+    }
+
+    // Get user using plain helper
+    const userId = await getUserByClerkId(ctx, clerkId);
+    if (!userId) {
+      return { longestStreak: 0 };
+    }
 
     const allLogs = await ctx.db
       .query("progress")
-      .withIndex("by_userId_logDate", (q) => q.eq("userId", userId))
+      .withIndex("by_userId_logDate", (q) => q.eq("userId", userId._id))
       .collect();
 
     if (allLogs.length === 0) {
@@ -229,7 +280,7 @@ export const getLongestStreak = query({
  * Gets statistics for the authenticated user.
  */
 export const getStats = query({
-  async handler(ctx) {
+  handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return {
@@ -241,12 +292,32 @@ export const getStats = query({
       };
     }
 
-     const userId = await getUserByTokenIdentifier(ctx, identity.email)
-    if(!userId) throw new Error('UserId not found')
+    const clerkId = identity.subject as string;
+    if (!clerkId) {
+      return {
+        totalDaysLogged: 0,
+        cleanDays: 0,
+        cleanPercentage: 0,
+        currentStreak: 0,
+        longestStreak: 0,
+      };
+    }
+
+    // Get user using plain helper
+    const userId = await getUserByClerkId(ctx, clerkId);
+    if (!userId) {
+      return {
+        totalDaysLogged: 0,
+        cleanDays: 0,
+        cleanPercentage: 0,
+        currentStreak: 0,
+        longestStreak: 0,
+      };
+    }
 
     const allLogs = await ctx.db
       .query("progress")
-      .withIndex("by_userId_logDate", (q) => q.eq("userId", userId))
+      .withIndex("by_userId_logDate", (q) => q.eq("userId", userId._id))
       .collect();
 
     const totalDaysLogged = allLogs.length;
@@ -254,9 +325,24 @@ export const getStats = query({
     const cleanPercentage = totalDaysLogged > 0 ? Math.round((cleanDays / totalDaysLogged) * 100) : 0;
     const longestStreak = totalDaysLogged > 0 ? Math.max(...allLogs.map((log) => log.streak)) : 0;
 
-    // Get current streak
-    const currentStreakResult: {streak: number} = await ctx.runQuery(api.progress.getCurrentStreak)
-    const currentStreak = currentStreakResult.streak;
+    // Inline current streak logic (avoids self-reference)
+    const lastLog = await ctx.db
+      .query("progress")
+      .withIndex("by_userId_logDate", (q) => q.eq("userId", userId._id))
+      .order("desc")
+      .first();
+
+    let currentStreak = 0;
+    if (lastLog) {
+      const today = new Date().toISOString().split("T")[0];
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split("T")[0];
+
+      if (lastLog.logDate === today || lastLog.logDate === yesterdayStr) {
+        currentStreak = lastLog.streak;
+      }
+    }
 
     return {
       totalDaysLogged,

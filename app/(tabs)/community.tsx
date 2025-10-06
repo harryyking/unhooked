@@ -270,7 +270,7 @@ const Community = () => {
             <View className="px-4 py-4">
                 <View className="flex-row items-center justify-between mb-2">
                     <View className="flex-1">
-                        <Text className="text-2xl font-bold mb-1 text-foreground">
+                        <Text className="text-3xl font-bold mb-1 text-foreground">
                             Passion Stories
                         </Text>
                         <Text className="text-sm text-muted-foreground">

@@ -7,7 +7,8 @@ import { useColorScheme } from 'nativewind';
 import { useRouter } from 'expo-router';
 import NetInfo from '@react-native-community/netinfo';
 import * as SecureStore from 'expo-secure-store';
-import { enableReminders, cancelReminders } from '../_layout'; // Import from RootLayout
+import { enableReminders, cancelReminders } from '@/lib/reminders'; // Import from RootLayout
+import { useClerk } from '@clerk/clerk-expo'; // Clerk sign out integration
 
 // iOS-style settings group component
 const SettingsGroup = React.memo(
@@ -119,6 +120,7 @@ const SettingsItem = React.memo(
 const Settings = () => {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { signOut } = useClerk(); // Clerk sign out hook
   const { colorScheme, setColorScheme } = useColorScheme();
   const [isDark, setIsDark] = useState(colorScheme === 'dark');
   const [remindersEnabled, setRemindersEnabled] = useState(false);
@@ -180,7 +182,7 @@ const Settings = () => {
     try {
       await Share.share({
         message: 'Check out Unhooked! The app that helps you disconnect and live better.',
-        url: 'https://unhooked.app',
+        url: 'https://unhooked.xyz',
       });
     } catch (error) {
       console.error('Error sharing app:', error);
@@ -205,7 +207,8 @@ const Settings = () => {
           text: 'Sign Out',
           onPress: async () => {
             try {
-              router.replace('/(auth)/sign-up');
+              await signOut(); // Clerk sign out
+              router.replace('/(auth)/sign-up'); // Redirect to sign-up
             } catch (error) {
               console.error('Error signing out:', error);
               Alert.alert('Error', 'Failed to sign out. Please try again.');
@@ -215,13 +218,13 @@ const Settings = () => {
         },
       ]
     );
-  }, [ router]);
+  }, [signOut, router]);
 
   return (
     <View className="flex-1 bg-background">
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View className="px-4 py-6 bg-background">
-          <Text className="text-2xl font-bold mb-1 text-foreground">Settings</Text>
+          <Text className="text-3xl font-bold mb-1 text-foreground">Settings</Text>
           <Text className="text-muted-foreground text-sm">
             Manage your preferences and account
           </Text>
@@ -292,21 +295,21 @@ const Settings = () => {
               icon={<Feather name="help-circle" size={20} color="white" />}
               iconBackgroundColor="#5856D6"
               label="FAQ"
-              onPress={() => openLink('https://unhooked.app/faq')}
+              onPress={() => openLink('https://unhooked.xyz')}
               isLink
             />
             <SettingsItem
               icon={<MaterialCommunityIcons name="email-outline" size={20} color="white" />}
               iconBackgroundColor="#FF9500"
               label="Contact Support"
-              onPress={() => openLink('mailto:support@unhooked.app')}
+              onPress={() => openLink('mailto:support@unhooked.xyz')}
               isLink
             />
             <SettingsItem
               icon={<Feather name="book" size={20} color="white" />}
               iconBackgroundColor="#32D74B"
               label="User Guide"
-              onPress={() => openLink('https://unhooked.app/user-guide')}
+              onPress={() => openLink('https://unhooked.xyz/user-guide')}
               isLast
               isLink
             />
@@ -323,14 +326,14 @@ const Settings = () => {
               icon={<MaterialCommunityIcons name="shield-check" size={20} color="white" />}
               iconBackgroundColor="#34C759"
               label="Privacy Policy"
-              onPress={() => openLink('https://unhooked.app/privacy-policy')}
+              onPress={() => openLink('https://unhooked.xyz/privacy')}
               isLink
             />
             <SettingsItem
               icon={<MaterialCommunityIcons name="file-document" size={20} color="white" />}
               iconBackgroundColor="#8E8E93"
               label="Terms of Service"
-              onPress={() => openLink('https://unhooked.app/terms-of-service')}
+              onPress={() => openLink('https://unhooked.xyz/terms')}
               isLink
             />
             <SettingsItem

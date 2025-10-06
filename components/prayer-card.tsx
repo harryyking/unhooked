@@ -1,11 +1,9 @@
 // components/PrayerTimerCard.tsx
 import React from 'react';
-import { View, Text } from 'react-native';
-import { Button } from '@/components/ui/button'; // Assuming shadcn-like reusable
+import { View, Text, ImageBackground, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@react-navigation/native';
-import { Card } from './ui/card';
-import { ChevronRight } from 'lucide-react-native'; // Assuming lucide icons for React Native are available; install if needed
+import { ChevronRight } from 'lucide-react-native';
 
 interface PrayerTimerCardProps {
   dailyVerse: string; // e.g., "1 Corinthians 10:13"
@@ -26,22 +24,37 @@ export function PrayerTimerCard({ dailyVerse, onPress }: PrayerTimerCardProps) {
   };
 
   return (
-    <Card className="bg-secondary rounded-3xl shadow-md overflow-hidden">
-      <View className="p-4">
-        <Text
-          className="text-lg font-semibold text-center mb-2"
-          style={{ color: colors.text }}
-        >
-          Guided Prayer (3 min)
-        </Text>
-        <Button
-          onPress={handlePress}
-          className="rounded-full py-3"
-        >
-          <Text className="font-medium mr-2">Start Prayer</Text>
-          <ChevronRight size={18} color="white" />
-        </Button>
-      </View>
-    </Card>
+    <TouchableOpacity
+      onPress={handlePress}
+      activeOpacity={0.8}
+      className="rounded-3xl overflow-hidden shadow-md mb-6"
+    >
+      <ImageBackground
+        source={require('@/assets/images/prayer.jpg')} // Replace with your image path
+        className="w-full h-40"
+        resizeMode="cover"
+      >
+        {/* Gradient overlay for better text readability */}
+        <View className="absolute inset-0 bg-black/40" />
+        
+        {/* Content */}
+        <View className="flex-1 justify-center items-center p-4">
+          <Text className="text-white text-2xl font-bold text-center mb-1">
+            Guided Prayer
+          </Text>
+          <Text className="text-white/90 text-base font-medium text-center mb-4">
+            3 minutes
+          </Text>
+          
+          {/* Call to action indicator */}
+          <View className="flex-row items-center bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
+            <Text className="text-white font-semibold mr-1">
+              Start Prayer
+            </Text>
+            <ChevronRight size={18} color="white" />
+          </View>
+        </View>
+      </ImageBackground>
+    </TouchableOpacity>
   );
 }

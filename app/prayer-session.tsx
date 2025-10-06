@@ -1,4 +1,4 @@
-// app/(tabs)/prayer-session.tsx - Enhanced with beautiful animations
+// app/(tabs)/prayer-session.tsx - Enhanced with beautiful animations and user-controlled silent mode
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Pressable, Modal, Alert, Animated, Easing, Dimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -26,6 +26,7 @@ export default function PrayerSession() {
   const [secondsLeft, setSecondsLeft] = useState(3 * 60); // 3 minutes
   const [currentPromptIndex, setCurrentPromptIndex] = useState(0);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [allowSilentMode, setAllowSilentMode] = useState(false); // User permission for silent mode override
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === 'dark';
   
@@ -50,6 +51,27 @@ export default function PrayerSession() {
     }))
   ).current;
 
+  // Helper for smooth fade-out (2 seconds by default)
+  const fadeOutAudio = async (fadeDuration: number = 2000) => {
+    if (!sound) return;
+    
+    const steps = 20;  // Number of fade steps for smoothness
+    const stepTime = fadeDuration / steps;
+    let currentVolume = 1.0;
+    
+    const fadeInterval = setInterval(async () => {
+      currentVolume -= (1.0 / steps);
+      if (currentVolume <= 0) {
+        clearInterval(fadeInterval);
+        await sound.stopAsync().catch(console.error);
+        await sound.unloadAsync().catch(console.error);
+        setSound(null);
+      } else {
+        await sound.setVolumeAsync(currentVolume).catch(console.error);
+      }
+    }, stepTime);
+  };
+
   useEffect(() => {
     // Initial fade in animation
     Animated.timing(fadeAnim, {
@@ -67,7 +89,7 @@ export default function PrayerSession() {
     }).start();
 
     return () => {
-      sound?.unloadAsync();
+      sound?.unloadAsync().catch(console.error);
       intervalRef.current && clearInterval(intervalRef.current);
       promptIntervalRef.current && clearInterval(promptIntervalRef.current);
     };
@@ -75,8 +97,15 @@ export default function PrayerSession() {
 
   useEffect(() => {
     if (secondsLeft === 0) {
+      // Clear intervals
       intervalRef.current && clearInterval(intervalRef.current);
       promptIntervalRef.current && clearInterval(promptIntervalRef.current);
+      
+      // Fade out audio before stopping
+      if (sound) {
+        fadeOutAudio();
+      }
+      
       setIsPlaying(false);
       
       Alert.alert(
@@ -94,7 +123,7 @@ export default function PrayerSession() {
         }]
       );
     }
-  }, [secondsLeft]);
+  }, [secondsLeft, sound, router]);
 
   const startCelestialAnimations = () => {
     // Rotating glow effect
@@ -210,8 +239,41 @@ export default function PrayerSession() {
     ]).start();
   };
 
-  const loadAndPlayAudio = async () => {
+  const requestSilentModePermission = () => {
+    Alert.alert(
+      '🎵 Calming Music',
+      'To hear the soothing instrumental during your prayer session, we can play audio even if your device is in silent mode. Would you like to enable this?\n\n(You can toggle silent mode off manually anytime.)',
+      [
+        {
+          text: 'No, silent mode respected',
+          style: 'cancel',
+          onPress: () => {
+            // Proceed without override
+            proceedWithAudio(false);
+          }
+        },
+        {
+          text: 'Yes, play in silent mode',
+          onPress: () => {
+            setAllowSilentMode(true);
+            // Proceed with override
+            proceedWithAudio(true);
+          }
+        }
+      ]
+    );
+  };
+
+  const proceedWithAudio = async (playsInSilent: boolean) => {
     try {
+      // Set audio mode based on permission (mixes with other audio to avoid interruptions)
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: playsInSilent,
+        interruptionModeIOS: 2,
+        shouldDuckAndroid: true,
+        staysActiveInBackground: true,
+      });
+
       const { sound: newSound } = await Audio.Sound.createAsync(
         require('@/assets/audio/instrumental.mp3'),
         { shouldPlay: true, isLooping: true, volume: 0.7 }
@@ -221,10 +283,20 @@ export default function PrayerSession() {
       startTimer();
       startCelestialAnimations();
     } catch (error) {
-      // If audio fails, still start the session
+      console.error('Audio setup error:', error);
+      // If audio fails entirely, still start the session without music
       setIsPlaying(true);
       startTimer();
       startCelestialAnimations();
+      Alert.alert('Notice', 'Music could not be loaded. Continuing with guided prayer.');
+    }
+  };
+
+  const loadAndPlayAudio = async () => {
+    if (!allowSilentMode) {
+      requestSilentModePermission();
+    } else {
+      proceedWithAudio(true);
     }
   };
 
@@ -246,11 +318,13 @@ export default function PrayerSession() {
     intervalRef.current && clearInterval(intervalRef.current);
     promptIntervalRef.current && clearInterval(promptIntervalRef.current);
     
+    // Fade out audio before stopping
     if (sound) {
-      await sound.stopAsync();
-      await sound.unloadAsync();
-      setSound(null);
+      await fadeOutAudio();
     }
+    
+    // Reset for next session
+    setAllowSilentMode(false);
     
     Animated.timing(fadeAnim, {
       toValue: 0,

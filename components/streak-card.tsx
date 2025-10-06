@@ -130,8 +130,6 @@ const StreakCard: React.FC = () => {
         mood: answers.mood!,
         triggers: triggersArray,
         journal: answers.journal,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
       });
       setStep(questions.length);
       setTimeout(() => {

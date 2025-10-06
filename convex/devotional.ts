@@ -168,8 +168,6 @@ export const getRandomDailyVerse = query({
 
 export const getDailyVerseForUser = action({
   handler: async (ctx: ActionCtx): Promise<{ verse: string; reference: string } | null> => {
-    // Get user via runQuery (now from users.ts)
-    const user = await ctx.runQuery(api.auth.getCurrentUser);
 
     const bibleId = '65eec8e0b60e656b-01'; // Default to KJV
 

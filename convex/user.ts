@@ -1,112 +1,109 @@
-// convex/user.ts
+// convex/users.ts
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { mutation } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
+import type { QueryCtx, MutationCtx } from "./_generated/server";  // For plain helper types
+import { Doc, Id } from "./_generated/dataModel";  // For type safety
 
-// Mutation to update user profile
-export const updateUser = mutation({
-  args: {
-    name: v.optional(v.string()),
-    avatarUrlId: v.optional(v.id("_storage")),
-    email: v.optional(v.string())
-  },
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+// --------------------- PLAIN HELPERS (for direct reuse, no runQuery needed) ---------------------
+/**
+ * Plain helper: Get user by Clerk ID (O(1) via index). Returns null if not found.
+ * Usable in queries/mutations/actions (ctx type is compatible).
+ */
+export async function getUserByClerkId(
+  ctx: QueryCtx | MutationCtx,
+  clerkId: string
+): Promise<Doc<"users"> | null> {
+  return await ctx.db
+    .query("users")
+    .withIndex("by_clerkId", (q) => q.eq("clerkId", clerkId))
+    .unique();
+}
 
-    const tokenIdentifier = identity.tokenIdentifier;
-    if (!tokenIdentifier) throw new Error("No tokenIdentifier provided");
+/**
+ * Plain helper: Idempotent upsert user from Clerk data.
+ * Returns the user _id; handles partial updates efficiently.
+ * Usable in mutations/actions (pass MutationCtx).
+ */
+export async function createOrUpdateUser(
+  ctx: MutationCtx,
+  { clerkId, email, name }: { clerkId: string; email?: string; name?: string }
+): Promise<Id<"users">> {
+  const existingUser = await getUserByClerkId(ctx, clerkId);
 
-    // Inline query for user lookup
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", tokenIdentifier))
-      .first();
+  const now = Date.now();
+  const updates = {
+    email: email ?? existingUser?.email,
+    name: name ?? existingUser?.name ?? "",
+    updatedAt: now,
+  };
 
-    if (!user) throw new Error("User not found");
-
-    // Check for unique name if provided
-    if (args.name && args.name !== user.name) {
-      const existingName = await ctx.db
-        .query("users")
-        .filter((q) => q.eq(q.field("name"), args.name))
-        .first();
-      if (existingName && existingName._id !== user._id) {
-        throw new Error("Username already taken");
-      }
-    }
-
-    await ctx.db.patch(user._id, {
-      name: args.name ?? user.name,
-      avatarUrlId: args.avatarUrlId ?? user.avatarUrlId,
-      email: args.email ?? user.email,
-      updatedAt: Date.now(),
+  if (existingUser) {
+    // Patch only changed fields (efficient; schema validation runs)
+    await ctx.db.patch(existingUser._id, updates);
+    return existingUser._id;
+  } else {
+    // Insert new with full data
+    const newUserId = await ctx.db.insert("users", {
+      clerkId,
+      ...updates,
+      createdAt: now,
     });
+    return newUserId;
+  }
+}
 
-    return user._id;
-  },
-});
-
-// Mutation to generate upload URL for avatar
-export const generateUploadUrl = mutation({
+// --------------------- PUBLIC FUNCTIONS (use helpers directly) ---------------------
+/**
+ * Public: Get current user (auth-guarded, for client-side profile).
+ */
+export const get = query({
+  args: {},  // No args; uses auth context
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-
-    return await ctx.storage.generateUploadUrl();
+    if (!identity?.subject) {
+      throw new Error("Unauthenticated");
+    }
+    const clerkId = identity.subject as string;
+    return await getUserByClerkId(ctx, clerkId);  // Direct call to plain helper
   },
 });
 
-// Mutation to save uploaded avatar
-export const saveAvatar = mutation({
-  args: { storageId: v.id("_storage") },
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-
-    const tokenIdentifier = identity.tokenIdentifier;
-    if (!tokenIdentifier) throw new Error("No tokenIdentifier provided");
-
-    // Inline query for user lookup
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", tokenIdentifier))
-      .first();
-
-    if (!user) throw new Error("User not found");
-
-    await ctx.db.patch(user._id, {
-      avatarUrlId: args.storageId,
-      updatedAt: Date.now(),
-    });
-
-    return args.storageId;
-  },
-});
-
-// Mutation to save preference
-export const savePreference = mutation({
+/**
+ * Public: Idempotent create/update user from Clerk data (e.g., webhook or login).
+ */
+export const createOrUpdate = mutation({
   args: {
-    preferredBibleVersion: v.string(),
+    clerkId: v.string(),
+    email: v.optional(v.string()),  // Matches schema
+    name: v.optional(v.string()),   // Matches schema
   },
   handler: async (ctx, args) => {
+    return await createOrUpdateUser(ctx, args);  // Direct call to plain helper
+  },
+});
+
+export const deleteUser = mutation({
+  args: {
+    clerkId: v.string(),  // Clerk user ID to delete
+  },
+  handler: async (ctx, { clerkId }) => {
+    // Optional: Auth check (e.g., only allow if caller is admin or the user themselves)
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (identity?.subject !== clerkId) {
+      throw new Error("Unauthorized: Can only delete own account");
+    }
 
-    const tokenIdentifier = identity.tokenIdentifier;
-    if (!tokenIdentifier) throw new Error("No tokenIdentifier provided");
+    // Resolve user by Clerk ID
+    const userDoc = await getUserByClerkId(ctx, clerkId);
+    if (!userDoc) {
+      throw new Error(`User not found: ${clerkId}`);
+    }
 
-    // Inline query for user lookup
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", tokenIdentifier))
-      .first();
+    // Delete the document
+    const deletedId = await ctx.db.delete(userDoc._id);
+    
+    console.log(`[Users] Deleted user: ${clerkId} (ID: ${deletedId})`);  // Optional logging
 
-    if (!user) throw new Error("User not found");
-
-    await ctx.db.patch(user._id, {
-      preferredBibleVersion: args.preferredBibleVersion,
-      updatedAt: Date.now(),
-    });
+    return { success: true, deletedId };
   },
 });

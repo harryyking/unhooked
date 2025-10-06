@@ -19,6 +19,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import Slider from '@react-native-community/slider';
+import NetInfo from '@react-native-community/netinfo'; // Add this import for internet connection check
 
 // Convex API
 import { api } from '@/convex/_generated/api';
@@ -263,6 +264,7 @@ const Resources = () => {
   const insets = useSafeAreaInsets();
   const slideAnim = useRef(new Animated.Value(0)).current;
   const [refreshing, setRefreshing] = useState(false);
+  const netInfo = NetInfo.useNetInfo(); // Add this to track internet connection
 
   const resources = useQuery(api.resource.listAudios);
 
@@ -293,6 +295,15 @@ const Resources = () => {
   }, []);
 
   const playAudio = useCallback(async (item: Resource) => {
+    // Check internet connection before attempting to play
+    if (netInfo.isConnected !== true) {
+      Alert.alert(
+        'No Internet Connection',
+        'You need an active internet connection to stream this podcast. Please check your network settings.'
+      );
+      return;
+    }
+
     try {
       setAudioState(prev => ({ ...prev, isLoading: true, isBuffering: true, currentTrack: item._id }));
 
@@ -363,7 +374,7 @@ const Resources = () => {
         isPlaying: false 
       }));
     }
-  }, [audioState.sound, slideAnim]);
+  }, [audioState.sound, slideAnim, netInfo.isConnected]);
 
   const togglePlayback = useCallback(async () => {
     if (!audioState.sound) return;
@@ -429,6 +440,16 @@ const Resources = () => {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    const state = await NetInfo.fetch();
+    if (!state.isConnected) {
+      Alert.alert(
+        'No Internet Connection',
+        'Cannot refresh content without an internet connection. Please check your network.'
+      );
+      setRefreshing(false);
+      return;
+    }
+    // Proceed with refresh (Convex will handle re-query)
     setTimeout(() => setRefreshing(false), 1000);
   }, []);
 
@@ -517,6 +538,14 @@ const Resources = () => {
   }, [audioState, colors, dark, formatTime, playAudio]);
 
   if (resources === undefined) {
+    if (netInfo.isConnected !== true) {
+      return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <MaterialCommunityIcons name="wifi-off" size={50} color={colors.text} />
+          <Text style={{ marginTop: 10, color: colors.text }}>No internet connection. Please connect to load podcasts.</Text>
+        </View>
+      );
+    }
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -526,6 +555,14 @@ const Resources = () => {
   }
 
   if (resources.length === 0) {
+    if (netInfo.isConnected !== true) {
+      return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <MaterialCommunityIcons name="wifi-off" size={50} color={colors.text} />
+          <Text style={{ marginTop: 10, color: colors.text }}>No internet connection. Please connect to load podcasts.</Text>
+        </View>
+      );
+    }
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <MaterialCommunityIcons name="cloud-off-outline" size={50} color={colors.text} />
@@ -540,7 +577,7 @@ const Resources = () => {
         <View className="px-4 py-6">
           <View className="flex-row items-center justify-between mb-4">
             <View>
-              <Text className="text-2xl font-bold mb-1">
+              <Text className="text-3xl font-bold mb-1">
                 Podcast with KK Baidoo
               </Text>
               <Text className="text-muted-foreground text-sm">
