@@ -2,10 +2,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Pressable, Modal, Alert, Animated, Easing, Dimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Audio } from 'expo-av';
+import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from 'expo-audio';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { useColorScheme } from 'nativewind';
 
 const { width, height } = Dimensions.get('window');
@@ -25,7 +24,6 @@ export default function PrayerSession() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(3 * 60); // 3 minutes
   const [currentPromptIndex, setCurrentPromptIndex] = useState(0);
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [allowSilentMode, setAllowSilentMode] = useState(false); // User permission for silent mode override
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -51,9 +49,13 @@ export default function PrayerSession() {
     }))
   ).current;
 
+  const audioSource = require('@/assets/audio/instrumental.mp3');
+  const player = useAudioPlayer(audioSource, 0.7 );
+  const status = useAudioPlayerStatus(player);
+
   // Helper for smooth fade-out (2 seconds by default)
   const fadeOutAudio = async (fadeDuration: number = 2000) => {
-    if (!sound) return;
+    if (!player) return;
     
     const steps = 20;  // Number of fade steps for smoothness
     const stepTime = fadeDuration / steps;
@@ -63,11 +65,11 @@ export default function PrayerSession() {
       currentVolume -= (1.0 / steps);
       if (currentVolume <= 0) {
         clearInterval(fadeInterval);
-        await sound.stopAsync().catch(console.error);
-        await sound.unloadAsync().catch(console.error);
-        setSound(null);
+        player.pause();
+        player.volume;
+        player.remove();
       } else {
-        await sound.setVolumeAsync(currentVolume).catch(console.error);
+        currentVolume = player.volume;
       }
     }, stepTime);
   };
@@ -89,11 +91,14 @@ export default function PrayerSession() {
     }).start();
 
     return () => {
-      sound?.unloadAsync().catch(console.error);
       intervalRef.current && clearInterval(intervalRef.current);
       promptIntervalRef.current && clearInterval(promptIntervalRef.current);
+      if (player) {
+        player.pause();
+        player.remove();
+      }
     };
-  }, []);
+  }, [player]);
 
   useEffect(() => {
     if (secondsLeft === 0) {
@@ -102,9 +107,7 @@ export default function PrayerSession() {
       promptIntervalRef.current && clearInterval(promptIntervalRef.current);
       
       // Fade out audio before stopping
-      if (sound) {
-        fadeOutAudio();
-      }
+      fadeOutAudio();
       
       setIsPlaying(false);
       
@@ -123,7 +126,7 @@ export default function PrayerSession() {
         }]
       );
     }
-  }, [secondsLeft, sound, router]);
+  }, [secondsLeft, player, router]);
 
   const startCelestialAnimations = () => {
     // Rotating glow effect
@@ -267,18 +270,16 @@ export default function PrayerSession() {
   const proceedWithAudio = async (playsInSilent: boolean) => {
     try {
       // Set audio mode based on permission (mixes with other audio to avoid interruptions)
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: playsInSilent,
-        interruptionModeIOS: 2,
-        shouldDuckAndroid: true,
-        staysActiveInBackground: true,
+      await setAudioModeAsync({
+        playsInSilentMode: playsInSilent,
+        interruptionMode: 'mixWithOthers',
+        shouldRouteThroughEarpiece: true,
+        shouldPlayInBackground: true,
       });
 
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        require('@/assets/audio/instrumental.mp3'),
-        { shouldPlay: true, isLooping: true, volume: 0.7 }
-      );
-      setSound(newSound);
+      player.loop;
+      player.volume;
+      player.play();
       setIsPlaying(true);
       startTimer();
       startCelestialAnimations();
@@ -319,7 +320,7 @@ export default function PrayerSession() {
     promptIntervalRef.current && clearInterval(promptIntervalRef.current);
     
     // Fade out audio before stopping
-    if (sound) {
+    if (player) {
       await fadeOutAudio();
     }
     

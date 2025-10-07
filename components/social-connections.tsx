@@ -5,10 +5,8 @@ import * as WebBrowser from 'expo-web-browser';
 import { useColorScheme } from 'nativewind';
 import * as React from 'react';
 import { Text } from './ui/text';
-import * as AppleAuthentication from 'expo-apple-authentication';
 import { Alert, Image, Platform, View, type ImageSourcePropType } from 'react-native';
 import * as AuthSession from 'expo-auth-session';
-import * as crypto from 'expo-crypto';  // Add for nonce
 import { StartSSOFlowParams, useSSO } from '@clerk/clerk-expo';
 
 
