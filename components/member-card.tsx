@@ -4,9 +4,10 @@ import { Card, CardDescription, CardFooter, CardHeader, CardTitle, CardContent }
 import { Text } from './ui/text';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { useQuery, useMutation, Unauthenticated, Authenticated, useConvexAuth } from 'convex/react';
+import { useQuery, useMutation } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth, SignedIn, SignedOut } from '@clerk/clerk-expo'; // Clerk auth hooks and components
 
 const { width, height } = Dimensions.get('window');
 
@@ -27,9 +28,9 @@ const MemberCard: React.FC = () => {
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
 
-  // Auth state
-  const {isAuthenticated, isLoading } = useConvexAuth();
-  const partnershipUsers = useQuery(api.invite.getPartnershipUsersWithStreaks, isAuthenticated ? undefined : "skip") || [];
+  // Auth state from Clerk
+  const { isSignedIn, isLoaded } = useAuth();
+  const partnershipUsers = useQuery(api.invite.getPartnershipUsersWithStreaks, isSignedIn ? undefined : "skip") || [];
   const generateInviteMutation = useMutation(api.invite.generateInvite);
   const redeemInvite = useMutation(api.invite.redeemInvite);
 
@@ -64,22 +65,22 @@ const MemberCard: React.FC = () => {
 
   // Close modals if user signs out
   useEffect(() => {
-    if (!isAuthenticated && (modalVisible || redeemModalVisible)) {
+    if (!isSignedIn && (modalVisible || redeemModalVisible)) {
       setModalVisible(false);
       setRedeemModalVisible(false);
       Alert.alert("Session Expired", "Please sign in to continue.");
     }
-  }, [isAuthenticated]);
+  }, [isSignedIn]);
 
   const handleGenerateInvite = async (): Promise<void> => {
-    if (!isAuthenticated) {
+    if (!isSignedIn) {
       Alert.alert("Sign In Required", "Please sign in to generate an invite code.");
       return;
     }
     
     try {
       const result = await generateInviteMutation();
-      setInviteCode(code);
+      setInviteCode(result.code); // Assuming the mutation returns { code: string }
       setIsCopied(false);
     } catch (error: any) {
       console.error('Error generating invite:', error);
@@ -109,7 +110,7 @@ const MemberCard: React.FC = () => {
   };
 
   const handleRedeem = async () => {
-    if (!isAuthenticated) {
+    if (!isSignedIn) {
       Alert.alert("Sign In Required", "Please sign in to redeem an invite code.");
       setRedeemModalVisible(false);
       return;
@@ -197,7 +198,7 @@ const MemberCard: React.FC = () => {
     </View>
   );
 
-  if (isLoading) {
+  if (!isLoaded) {
     return (
       <View className="flex-1 justify-center items-center">
         <ActivityIndicator size="large" color="#0000ff" />
@@ -272,7 +273,7 @@ const MemberCard: React.FC = () => {
             <Button 
               onPress={handleGenerateInvite} 
               className='mb-4'
-              disabled={!isAuthenticated || isLoading}
+              disabled={!isSignedIn || !isLoaded}
             >
               <View className="flex-row items-center">
                 <Ionicons name="add-circle-outline" size={20} className="text-primary-foreground mr-2" />
@@ -280,16 +281,16 @@ const MemberCard: React.FC = () => {
               </View>
             </Button>
 
-            <Unauthenticated>
+            <SignedOut>
               <View className="flex-row items-center bg-destructive/10 p-4 rounded-lg mb-6 border-l-4 border-destructive">
                 <Ionicons name="warning" size={20} className="text-destructive mr-3" />
                 <Text className="text-destructive text-sm flex-1">
                   You must be signed in to generate an invite code.
                 </Text>
               </View>
-            </Unauthenticated>
+            </SignedOut>
 
-            <Authenticated>
+            <SignedIn>
               {inviteCode && (
                 <View className="flex-1">
                   <View className="bg-muted/30 border-2 border-dashed border-border rounded-2xl py-8 px-5 mb-6">
@@ -335,7 +336,7 @@ const MemberCard: React.FC = () => {
                   </View>
                 </View>
               )}
-            </Authenticated>
+            </SignedIn>
           </KeyboardAvoidingView>
         </View>
       </Modal>
@@ -493,7 +494,7 @@ const MemberCard: React.FC = () => {
                 <Button
                   size="lg"
                   onPress={handleRedeem}
-                  disabled={isSubmitting || code.length < 8 || !isAuthenticated || isLoading}
+                  disabled={isSubmitting || code.length < 8 || !isSignedIn || !isLoaded}
                   className="w-full mb-4"
                 >
                   {isSubmitting ? (

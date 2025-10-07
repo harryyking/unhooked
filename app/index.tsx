@@ -38,7 +38,7 @@ export default function Screen() {
               variant="h1" 
               className="mb-4 text-left font-semibold text-6xl font-mono"
             >
-              Ready to Flee From Porn?
+              Ready to Break Free?
             </Text>
 
             {/* Subtitle */}
