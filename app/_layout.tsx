@@ -74,7 +74,7 @@ function Routes() {
       const timeout = setTimeout(() => {
         console.warn('Splash timeout—hiding manually');
         SplashScreen.hideAsync();
-      }, 5000);
+      }, 8000);
       return () => clearTimeout(timeout);
     }
   }, [isLoaded]);
