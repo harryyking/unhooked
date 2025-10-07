@@ -57,6 +57,8 @@
       "typedRoutes": true
     },
     "extra": {
+      "EXPO_PUBLIC_CONVEX_URL": "https://insightful-vulture-707.convex.cloud",
+      "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_ZW1pbmVudC1sZWVjaC00MC5jbGVyay5hY2NvdW50cy5kZXYk",  
       "router": {},
       "eas": {
         "projectId": "bd0f805e-e36c-479c-b76c-041d24e8a602"

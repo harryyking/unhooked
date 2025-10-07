@@ -7,7 +7,10 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "env": { "EXPO_PUBLIC_CONVEX_URL": "https://insightful-vulture-707.convex.cloud" },
+      "env": { 
+        "EXPO_PUBLIC_CONVEX_URL": "https://insightful-vulture-707.convex.cloud",
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "${EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY_TEST}"
+      },
       "ios": {
         "resourceClass": "m-medium"  
       },
@@ -16,11 +19,18 @@
       }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": { 
+        "EXPO_PUBLIC_CONVEX_URL": "https://acrobatic-hawk-359.convex.cloud",
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "${EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY_TEST}"
+      }
     },
     "production": {
       "autoIncrement": true,
-      "env": { "EXPO_PUBLIC_CONVEX_URL": "https://acrobatic-hawk-359.convex.cloud" },
+      "env": { 
+        "EXPO_PUBLIC_CONVEX_URL": "https://acrobatic-hawk-359.convex.cloud",
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "${EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY_PROD}"
+      },
       "distribution": "store",
       "ios": {
         "credentialsSource": "remote"
