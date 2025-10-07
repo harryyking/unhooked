@@ -7,7 +7,7 @@
     "icon": "./assets/images/unhooked-ios-icon-3.png",
     "scheme": "unhooked",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/images/unhooked-splash.png",
       "resizeMode": "contain",
