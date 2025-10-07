@@ -18,7 +18,7 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.harrykingg.unhooked",
+      "bundleIdentifier": "com.harryking.unhooked",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
