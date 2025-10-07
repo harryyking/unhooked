@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import { useColorScheme } from 'nativewind';
 import { Text } from '@/components/ui/text';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
