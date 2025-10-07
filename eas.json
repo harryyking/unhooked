@@ -10,6 +10,9 @@
       "env": { "EXPO_PUBLIC_CONVEX_URL": "https://insightful-vulture-707.convex.cloud" },
       "ios": {
         "resourceClass": "m-medium"  
+      },
+      "android": {
+        "buildType": "apk"
       }
     },
     "preview": {
