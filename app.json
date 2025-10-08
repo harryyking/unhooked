@@ -7,7 +7,8 @@
     "icon": "./assets/images/unhooked-ios-icon-3.png",
     "scheme": "unhooked",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
+    "jsEngine": "jsc",
     "splash": {
       "image": "./assets/images/unhooked-splash.png",
       "resizeMode": "contain",
@@ -20,7 +21,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.harryking.unhooked",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSMicrophoneUsageDescription": "Allow Unhooked to access your microphone for prayer sessions."
       }
     },
     "android": {
@@ -54,7 +56,7 @@
       ]
     ],
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": false
     },
     "extra": {
       "EXPO_PUBLIC_CONVEX_URL": "https://insightful-vulture-707.convex.cloud",
