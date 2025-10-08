@@ -167,16 +167,10 @@ export default function RootLayout() {
   console.log('Clerk init with key prefix:', clerkKey.substring(0, 10) + '...');
 
   return (
-    <ClerkProvider tokenCache={tokenCache} publishableKey={clerkKey}>
-      <ClerkLoaded>
-        <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
           <ThemeProvider value={NAV_THEME[colorScheme ?? 'light']}>
             <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
             <Routes />
             <PortalHost />
           </ThemeProvider>
-        </ConvexProviderWithClerk>
-      </ClerkLoaded>
-    </ClerkProvider>
   );
 }
