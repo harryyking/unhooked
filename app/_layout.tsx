@@ -11,10 +11,11 @@ import { useColorScheme } from 'nativewind';
 import Constants from 'expo-constants';
 import * as React from 'react';
 import { ErrorUtils } from 'react-native';
-import { Text, View, ActivityIndicator } from 'react-native';
+import { Text, View, ActivityIndicator, Button } from 'react-native'; // ADDED: Button for retry
 import { ConvexReactClient } from 'convex/react';
 import { ClerkProvider, useAuth, ClerkLoaded } from '@clerk/clerk-expo';
 import { ConvexProviderWithClerk } from 'convex/react-clerk';
+import NetInfo, { useNetInfo } from '@react-native-community/netinfo'; // ADDED: Import NetInfo
 
 export {
   ErrorBoundary,
@@ -23,35 +24,21 @@ export {
 // Global error handler
 ErrorUtils.setGlobalHandler((error, isFatal) => {
   console.error('Global runtime error:', error, isFatal);
-  // Prevent app abort in prod by swallowing fatal errors after logging
-  if (isFatal) {
-    // In RN, this doesn't stop abort, but combined with try-catch below, it layers defense
-  }
 });
 
-// FIXED: Correct way to access env vars
+// Access env vars correctly for all environments
 const convexUrl = Constants.expoConfig?.extra?.EXPO_PUBLIC_CONVEX_URL;
 const clerkKey = Constants.expoConfig?.extra?.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
-// Enhanced Validation
-if (!convexUrl) {
-  console.error('Missing EXPO_PUBLIC_CONVEX_URL in prod build');
-}
-if (!clerkKey) {
-  console.error('Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY in prod build');
-} else if (!clerkKey.startsWith('pk_')) {
-  console.error('Invalid EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY format (must start with pk_):', clerkKey.substring(0, 20) + '...');
+// Strict validation with early exit
+if (!convexUrl || !clerkKey) {
+  console.error('Missing critical env vars:', { convexUrl, clerkKey: clerkKey ? clerkKey.substring(0, 10) + '...' : null });
 }
 
-// Convex client
-let convex = null;
-try {
-  if (convexUrl) {
-    convex = new ConvexReactClient(convexUrl, { unsavedChangesWarning: false });
-  }
-} catch (error) {
-  console.error('Convex client init error:', error);
-}
+// Convex client initialization
+const convex = convexUrl 
+  ? new ConvexReactClient(convexUrl, { unsavedChangesWarning: false })
+  : null;
 
 const SIGN_IN_SCREEN_OPTIONS = {
   headerShown: false,
@@ -71,44 +58,70 @@ const DEFAULT_AUTH_SCREEN_OPTIONS = {
   headerTransparent: true,
 } as const;
 
+// ADDED: Simple NoConnection component (customize styles as needed)
+function NoConnection({ onRetry }: { onRetry: () => void }) {
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000', paddingHorizontal: 20 }}>
+      <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold', marginBottom: 8 }}>No Internet Connection</Text>
+      <Text style={{ color: 'white', fontSize: 16, textAlign: 'center', marginBottom: 16 }}>
+        Please check your Wi-Fi or mobile data and try again.
+      </Text>
+      <Button title="Retry" onPress={onRetry} color="#007AFF" />
+    </View>
+  );
+}
+
 function Routes() {
-  let isSignedIn = false;
-  let isLoaded = false;
-  try {
-    const auth = useAuth();
-    isSignedIn = auth.isSignedIn;
-    isLoaded = auth.isLoaded;
-  } catch (error) {
-    console.error('useAuth error in Routes:', error);
-    // Fallback to loaded=false to show loading UI and avoid render crash
-    isLoaded = false;
-  }
+  const { isSignedIn, isLoaded } = useAuth();
+  const netInfo = useNetInfo(); // ADDED: Hook for net info
+  const [isOnline, setIsOnline] = React.useState<boolean | null>(null); // ADDED: State for online status
+
+  // ADDED: Listen for net changes (unsubscribe on unmount to avoid leaks)
+  React.useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener(state => {
+      // Use isInternetReachable for true internet check (falls back to isConnected if null)
+      setIsOnline(state.isInternetReachable ?? state.isConnected ?? false);
+    });
+
+    // Initial fetch to set state immediately
+    NetInfo.fetch().then(state => {
+      setIsOnline(state.isInternetReachable ?? state.isConnected ?? false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   React.useEffect(() => {
-    try {
-      if (isLoaded) {
-        SplashScreen.hideAsync().catch(console.error);
-      } else {
-        const timeout = setTimeout(() => {
-          console.warn('Splash timeout—hiding manually');
-          SplashScreen.hideAsync().catch(console.error);
-        }, 8000);
-        return () => clearTimeout(timeout);
-      }
-    } catch (error) {
-      console.error('Splash useEffect error:', error);
-      // Force hide to prevent stuck splash
-      SplashScreen.hideAsync().catch(() => {});
+    let timeout: ReturnType<typeof setTimeout> | null = null; 
+
+    if (isLoaded) {
+      SplashScreen.hideAsync().catch((err) => console.warn('Splash hide error:', err));
+    } else {
+      // Set a reasonable timeout to prevent infinite splash (increased to 10s for safety)
+      timeout = setTimeout(() => {
+        console.warn('Auth loading timeout—hiding splash manually');
+        SplashScreen.hideAsync().catch((err) => console.warn('Splash hide error:', err));
+      }, 10000);
     }
+
+    return () => {
+      if (timeout) clearTimeout(timeout);
+    };
   }, [isLoaded]);
 
-  if (!isLoaded) {
+  // ADDED: Offline check after auth load (show loading if status undetermined)
+  if (!isLoaded || isOnline === null) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
         <ActivityIndicator size="large" color="#ffffff" />
-        <Text style={{ color: 'white', fontSize: 16, marginTop: 16 }}>Loading...</Text>
+        <Text style={{ color: 'white', fontSize: 16, marginTop: 16 }}>Loading authentication...</Text>
       </View>
     );
+  }
+
+  // ADDED: Render NoConnection if offline, with retry to re-fetch net info
+  if (!isOnline) {
+    return <NoConnection onRetry={() => NetInfo.fetch().then(state => setIsOnline(state.isInternetReachable ?? state.isConnected ?? false))} />;
   }
 
   return (
@@ -139,57 +152,31 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const { colorScheme } = useColorScheme();
 
-  // Early fallback if critical config missing
+  // Early critical config check with user-friendly error screen
   if (!convexUrl || !clerkKey || !convex) {
-    console.error('Critical config missing—app cannot initialize', { 
-      convexUrl: !!convexUrl, 
-      clerkKey: clerkKey ? clerkKey.substring(0, 10) + '...' : null,
-      convex: !!convex 
-    });
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
         <Text style={{ color: 'white', fontSize: 16, textAlign: 'center', paddingHorizontal: 20 }}>
-          App configuration error. Please contact support.
+          App configuration error. Please check your setup and try again.
         </Text>
       </View>
     );
   }
 
-  // FIXED: Add logging for key validation
-  console.log('Using Clerk key prefix:', clerkKey.substring(0, 10) + '...');
+  // Log for debugging (keep in prod for diagnostics, but prefix for easy filtering)
+  console.log('Clerk init with key prefix:', clerkKey.substring(0, 10) + '...');
 
-  // FIXED: Wrap entire return in additional error boundary for provider crashes
-  try {
-    return (
-      <ErrorBoundary fallback={
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
-          <Text style={{ color: 'white', fontSize: 16 }}>Navigation error. Restart app.</Text>
-        </View>
-      }>
-        <ClerkProvider tokenCache={tokenCache} publishableKey={clerkKey}>
-          <ClerkLoaded fallback={
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
-              <ActivityIndicator size="large" color="#ffffff" />
-              <Text style={{ color: 'white', fontSize: 16, marginTop: 16 }}>Auth loading...</Text>
-            </View>
-          }>
-            <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-              <ThemeProvider value={NAV_THEME[colorScheme ?? 'light']}>
-                <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-                <Routes />
-                <PortalHost />
-              </ThemeProvider>
-            </ConvexProviderWithClerk>
-          </ClerkLoaded>
-        </ClerkProvider>
-      </ErrorBoundary>
-    );
-  } catch (error) {
-    console.error('RootLayout provider init error:', error);
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
-        <Text style={{ color: 'white', fontSize: 16 }}>Initialization failed. Check logs.</Text>
-      </View>
-    );
-  }
+  return (
+    <ClerkProvider tokenCache={tokenCache} publishableKey={clerkKey}>
+      <ClerkLoaded>
+        <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+          <ThemeProvider value={NAV_THEME[colorScheme ?? 'light']}>
+            <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+            <Routes />
+            <PortalHost />
+          </ThemeProvider>
+        </ConvexProviderWithClerk>
+      </ClerkLoaded>
+    </ClerkProvider>
+  );
 }
