@@ -7,8 +7,7 @@
     "icon": "./assets/images/unhooked-ios-icon-3.png",
     "scheme": "unhooked",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
-    "jsEngine": "jsc",
+    "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/unhooked-splash.png",
       "resizeMode": "contain",
@@ -56,7 +55,7 @@
       ]
     ],
     "experiments": {
-      "typedRoutes": false
+      "typedRoutes": true
     },
     "extra": {
       "EXPO_PUBLIC_CONVEX_URL": "https://insightful-vulture-707.convex.cloud",
