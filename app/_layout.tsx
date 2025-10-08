@@ -13,7 +13,7 @@ import * as React from 'react';
 import { ErrorUtils } from 'react-native';
 import { Text, View, ActivityIndicator } from 'react-native';
 import { ConvexReactClient } from 'convex/react';
-import { ClerkProvider, useAuth, ClerkLoaded } from '@clerk/clerk-expo'; // FIXED: Re-add ClerkLoaded import
+import { ClerkProvider, useAuth, ClerkLoaded } from '@clerk/clerk-expo';
 import { ConvexProviderWithClerk } from 'convex/react-clerk';
 
 export {
@@ -23,24 +23,35 @@ export {
 // Global error handler
 ErrorUtils.setGlobalHandler((error, isFatal) => {
   console.error('Global runtime error:', error, isFatal);
+  // Prevent app abort in prod by swallowing fatal errors after logging
+  if (isFatal) {
+    // In RN, this doesn't stop abort, but combined with try-catch below, it layers defense
+  }
 });
 
 // FIXED: Correct way to access env vars
 const convexUrl = Constants.expoConfig?.extra?.EXPO_PUBLIC_CONVEX_URL;
 const clerkKey = Constants.expoConfig?.extra?.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
-// Validation
+// Enhanced Validation
 if (!convexUrl) {
   console.error('Missing EXPO_PUBLIC_CONVEX_URL in prod build');
 }
 if (!clerkKey) {
   console.error('Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY in prod build');
+} else if (!clerkKey.startsWith('pk_')) {
+  console.error('Invalid EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY format (must start with pk_):', clerkKey.substring(0, 20) + '...');
 }
 
 // Convex client
-const convex = convexUrl 
-  ? new ConvexReactClient(convexUrl, { unsavedChangesWarning: false })
-  : null;
+let convex = null;
+try {
+  if (convexUrl) {
+    convex = new ConvexReactClient(convexUrl, { unsavedChangesWarning: false });
+  }
+} catch (error) {
+  console.error('Convex client init error:', error);
+}
 
 const SIGN_IN_SCREEN_OPTIONS = {
   headerShown: false,
@@ -61,22 +72,36 @@ const DEFAULT_AUTH_SCREEN_OPTIONS = {
 } as const;
 
 function Routes() {
-  const { isSignedIn, isLoaded } = useAuth();
+  let isSignedIn = false;
+  let isLoaded = false;
+  try {
+    const auth = useAuth();
+    isSignedIn = auth.isSignedIn;
+    isLoaded = auth.isLoaded;
+  } catch (error) {
+    console.error('useAuth error in Routes:', error);
+    // Fallback to loaded=false to show loading UI and avoid render crash
+    isLoaded = false;
+  }
 
   React.useEffect(() => {
-    if (isLoaded) {
-      SplashScreen.hideAsync().catch(console.error); // FIXED: Add catch for safety
-    } else {
-      // FIXED: Restore timeout to prevent infinite loading
-      const timeout = setTimeout(() => {
-        console.warn('Splash timeout—hiding manually');
+    try {
+      if (isLoaded) {
         SplashScreen.hideAsync().catch(console.error);
-      }, 8000);
-      return () => clearTimeout(timeout);
+      } else {
+        const timeout = setTimeout(() => {
+          console.warn('Splash timeout—hiding manually');
+          SplashScreen.hideAsync().catch(console.error);
+        }, 8000);
+        return () => clearTimeout(timeout);
+      }
+    } catch (error) {
+      console.error('Splash useEffect error:', error);
+      // Force hide to prevent stuck splash
+      SplashScreen.hideAsync().catch(() => {});
     }
   }, [isLoaded]);
 
-  // Show loading state while auth is loading
   if (!isLoaded) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
@@ -116,7 +141,11 @@ export default function RootLayout() {
 
   // Early fallback if critical config missing
   if (!convexUrl || !clerkKey || !convex) {
-    console.error('Critical config missing—app cannot initialize', { convexUrl, clerkKey: clerkKey ? clerkKey.substring(0, 10) + '...' : null });
+    console.error('Critical config missing—app cannot initialize', { 
+      convexUrl: !!convexUrl, 
+      clerkKey: clerkKey ? clerkKey.substring(0, 10) + '...' : null,
+      convex: !!convex 
+    });
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
         <Text style={{ color: 'white', fontSize: 16, textAlign: 'center', paddingHorizontal: 20 }}>
@@ -129,19 +158,31 @@ export default function RootLayout() {
   // FIXED: Add logging for key validation
   console.log('Using Clerk key prefix:', clerkKey.substring(0, 10) + '...');
 
+  // FIXED: Wrap entire return in additional error boundary for provider crashes
   try {
     return (
-      <ClerkProvider tokenCache={tokenCache} publishableKey={clerkKey}>
-        <ClerkLoaded> {/* FIXED: Re-add to gate useAuth until loaded */}
-          <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-            <ThemeProvider value={NAV_THEME[colorScheme ?? 'light']}>
-              <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-              <Routes />
-              <PortalHost />
-            </ThemeProvider>
-          </ConvexProviderWithClerk>
-        </ClerkLoaded>
-      </ClerkProvider>
+      <ErrorBoundary fallback={
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
+          <Text style={{ color: 'white', fontSize: 16 }}>Navigation error. Restart app.</Text>
+        </View>
+      }>
+        <ClerkProvider tokenCache={tokenCache} publishableKey={clerkKey}>
+          <ClerkLoaded fallback={
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
+              <ActivityIndicator size="large" color="#ffffff" />
+              <Text style={{ color: 'white', fontSize: 16, marginTop: 16 }}>Auth loading...</Text>
+            </View>
+          }>
+            <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+              <ThemeProvider value={NAV_THEME[colorScheme ?? 'light']}>
+                <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+                <Routes />
+                <PortalHost />
+              </ThemeProvider>
+            </ConvexProviderWithClerk>
+          </ClerkLoaded>
+        </ClerkProvider>
+      </ErrorBoundary>
     );
   } catch (error) {
     console.error('RootLayout provider init error:', error);
