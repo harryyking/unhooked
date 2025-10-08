@@ -15,16 +15,34 @@ import { Text, View } from 'react-native'; // For fallback UI
 import { ConvexReactClient } from 'convex/react';
 import { ClerkProvider, useAuth, ClerkLoaded } from '@clerk/clerk-expo';
 import { ConvexProviderWithClerk } from 'convex/react-clerk';
+import * as Sentry from '@sentry/react-native'; // Add Sentry import
 
 export {
   // Catch any errors thrown by the Layout component.
   ErrorBoundary,
 } from 'expo-router';
 
-// Global error handler for silent prod crashes
+// Initialize Sentry early (before any renders/providers)
+// Replace with your actual DSN
+Sentry.init({
+  dsn: Constants.default.expoConfig?.extra?.EXPO_PUBLIC_SENTRY_DSN || 'https://0f39584e201c125ca5d30a9a5bd204d9@o4510151920058368.ingest.us.sentry.io/4510151923466240', // Pull from env for prod safety
+  // Enable performance monitoring (adjust tracesSampleRate for prod)
+  tracesSampleRate: 1.0,
+  // Enable session replays (records errors/sessions)
+  replaysSessionSampleRate: 0.1,
+  replaysOnErrorSampleRate: 1.0,
+  integrations: [Sentry.mobileReplayIntegration()],
+  // Enable logs for debugging
+  enabled: true,
+  // Send user data if needed (e.g., for Clerk user ID)
+  sendDefaultPii: true,
+});
+
+// Global error handler for silent prod crashes (Sentry will also capture)
 ErrorUtils.setGlobalHandler((error, isFatal) => {
   console.error('Global runtime error:', error, isFatal);
-  // In prod, this logs to console (visible in Xcode Console on device)
+  // Optionally capture in Sentry too (auto-captured, but manual for extras)
+  Sentry.captureException(error, { tags: { isFatal } });
 });
 
 // Safe env access (bundled in prod via eas.json)
@@ -112,7 +130,7 @@ function Routes() {
 
 SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
+ function RootLayout() {
   const { colorScheme } = useColorScheme();
 
   // Early fallback if critical env missing (prevents blank screen)
@@ -139,3 +157,6 @@ export default function RootLayout() {
       </ClerkProvider>
   );
 }
+
+// Wrap the entire app with Sentry for error boundary
+export default Sentry.wrap(RootLayout);
