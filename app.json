@@ -21,7 +21,9 @@
       "bundleIdentifier": "com.harryking.unhooked",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSMicrophoneUsageDescription": "Allow Unhooked to access your microphone for prayer sessions."
+        "UIBackgroundModes": [
+          "audio"
+        ]
       }
     },
     "android": {
@@ -48,10 +50,7 @@
         }
       ],
       [
-        "expo-audio",
-        {
-          "microphonePermission": "Allow Unhooked to access your microphone for prayer sessions."
-        }
+        "expo-audio"
       ]
     ],
     "experiments": {

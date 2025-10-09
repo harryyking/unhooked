@@ -1,6 +1,18 @@
-// app/(tabs)/prayer-session.tsx - Enhanced with beautiful animations and user-controlled silent mode
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable, Modal, Alert, Animated, Easing, Dimensions } from 'react-native';
+// app/(tabs)/prayer-session.tsx - Production-ready with proper cleanup and error handling
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import {
+  View,
+  Text,
+  Pressable,
+  Modal,
+  Alert,
+  Animated,
+  Easing,
+  Dimensions,
+  AppState,
+  AppStateStatus,
+  Platform,
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from 'expo-audio';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,6 +21,11 @@ import { useColorScheme } from 'nativewind';
 
 const { width, height } = Dimensions.get('window');
 
+// Constants
+const INITIAL_SECONDS = 180; // 3 minutes
+const PROMPT_CHANGE_INTERVAL = 30000; // 30 seconds
+const TIMER_INTERVAL = 1000; // 1 second
+
 const GUIDANCE_PROMPTS = [
   "Breathe deeply and center your heart on God's presence.",
   "Let His light fill your soul with peace and hope.",
@@ -16,191 +33,312 @@ const GUIDANCE_PROMPTS = [
   "Feel the warmth of His grace surrounding you.",
   "Listen to the stillness and hear His gentle whisper.",
   "You are loved, you are forgiven, you are free."
-];
+] as const;
+
+// Types
+interface AnimationRefs {
+  fadeAnim: Animated.Value;
+  scaleAnim: Animated.Value;
+  rotateAnim: Animated.Value;
+  pulseAnim: Animated.Value;
+  glowAnim: Animated.Value;
+  promptFadeAnim: Animated.Value;
+  orbFloatAnim: Animated.Value;
+}
+
+interface ParticleAnimation {
+  x: Animated.Value;
+  y: Animated.Value;
+  opacity: Animated.Value;
+}
 
 export default function PrayerSession() {
   const router = useRouter();
   const { verse: dailyVerse } = useLocalSearchParams<{ verse: string }>();
+  
+  // State
   const [isPlaying, setIsPlaying] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(3 * 60); // 3 minutes
+  const [secondsLeft, setSecondsLeft] = useState(INITIAL_SECONDS);
   const [currentPromptIndex, setCurrentPromptIndex] = useState(0);
-  const [allowSilentMode, setAllowSilentMode] = useState(false); // User permission for silent mode override
+  const [isAudioReady, setIsAudioReady] = useState(false);
+  const [hasSessionEnded, setHasSessionEnded] = useState(false);
+  
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === 'dark';
-  
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Refs for cleanup
+  const isMountedRef = useRef(true);
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const promptIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Animation values
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const glowAnim = useRef(new Animated.Value(0.5)).current;
-  const promptFadeAnim = useRef(new Animated.Value(1)).current;
-  const orbFloatAnim = useRef(new Animated.Value(0)).current;
-  
-  // Particle animations for ambient effect
-  const particles = useRef(
-    [...Array(6)].map(() => ({
+  const animationLoopsRef = useRef<Animated.CompositeAnimation[]>([]);
+  const appStateRef = useRef(AppState.currentState);
+  const audioReleasedRef = useRef(false);
+  const sessionCleanedUpRef = useRef(false);
+
+  // Animation values - memoized to prevent recreation
+  const animations = useMemo<AnimationRefs>(() => ({
+    fadeAnim: new Animated.Value(0),
+    scaleAnim: new Animated.Value(0.8),
+    rotateAnim: new Animated.Value(0),
+    pulseAnim: new Animated.Value(1),
+    glowAnim: new Animated.Value(0.5),
+    promptFadeAnim: new Animated.Value(1),
+    orbFloatAnim: new Animated.Value(0),
+  }), []);
+
+  // Particle animations
+  const particles = useMemo<ParticleAnimation[]>(() => 
+    Array.from({ length: 6 }, () => ({
       x: new Animated.Value(Math.random() * width),
       y: new Animated.Value(height),
       opacity: new Animated.Value(0)
-    }))
-  ).current;
+    })), []
+  );
 
-  const audioSource = require('@/assets/audio/instrumental.mp3');
-  const player = useAudioPlayer(audioSource, 0.7 );
+  // Audio setup
+  const audioSource = useMemo(() => require('@/assets/audio/instrumental.mp3'), []);
+  const player = useAudioPlayer(audioSource, 0.7);
   const status = useAudioPlayerStatus(player);
 
-  // Helper for smooth fade-out (2 seconds by default)
-  const fadeOutAudio = async (fadeDuration: number = 2000) => {
-    if (!player) return;
+  // Helper function to safely check if we can proceed
+  const canProceed = useCallback(() => {
+    return isMountedRef.current && !hasSessionEnded && !sessionCleanedUpRef.current;
+  }, [hasSessionEnded]);
+
+  // Clean up all intervals
+  const clearAllIntervals = useCallback(() => {
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+    if (promptIntervalRef.current) {
+      clearInterval(promptIntervalRef.current);
+      promptIntervalRef.current = null;
+    }
+  }, []);
+
+  // Stop all animations
+  const stopAllAnimations = useCallback(() => {
+    animationLoopsRef.current.forEach(animation => animation.stop());
+    animationLoopsRef.current = [];
+  }, []);
+
+  // Release audio player safely
+  const releaseAudioSafely = useCallback(async () => {
+    if (audioReleasedRef.current) return;
     
-    const steps = 20;  // Number of fade steps for smoothness
-    const stepTime = fadeDuration / steps;
-    let currentVolume = 1.0;
-    
-    const fadeInterval = setInterval(async () => {
-      currentVolume -= (1.0 / steps);
-      if (currentVolume <= 0) {
-        clearInterval(fadeInterval);
-        player.pause();
-        player.volume;
-        player.remove();
-      } else {
-        currentVolume = player.volume;
+    try {
+      if (player && status.isLoaded) {
+        audioReleasedRef.current = true;
+        await player.pause();
+        await player.release();
       }
-    }, stepTime);
-  };
+    } catch (error) {
+      console.warn('Audio release error (expected if already released):', error);
+    }
+  }, [player, status.isLoaded]);
 
+  // Complete session cleanup
+  const cleanupSession = useCallback(async () => {
+    if (sessionCleanedUpRef.current) return;
+    sessionCleanedUpRef.current = true;
+
+    clearAllIntervals();
+    stopAllAnimations();
+    await releaseAudioSafely();
+    setIsPlaying(false);
+  }, [clearAllIntervals, stopAllAnimations, releaseAudioSafely]);
+
+  // Handle app state changes (background/foreground)
   useEffect(() => {
-    // Initial fade in animation
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 1500,
-      useNativeDriver: true,
-      easing: Easing.out(Easing.cubic)
-    }).start();
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (appStateRef.current.match(/active/) && nextAppState === 'background') {
+        // App going to background - pause session
+        if (isPlaying) {
+          clearAllIntervals();
+          if (player && status.isLoaded && !audioReleasedRef.current) {
+            player.pause()
+          }
+        }
+      } else if (appStateRef.current.match(/background/) && nextAppState === 'active') {
+        // App coming to foreground - resume if was playing
+        if (isPlaying && !hasSessionEnded) {
+          startTimer();
+          startPromptTimer();
+          if (player && status.isLoaded && !audioReleasedRef.current) {
+            player.play()
+          }
+        }
+      }
+      appStateRef.current = nextAppState;
+    };
 
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      friction: 3,
-      tension: 40,
-      useNativeDriver: true
-    }).start();
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, [isPlaying, hasSessionEnded, player, status.isLoaded]);
+
+  // Set audio ready when loaded
+  useEffect(() => {
+    if (status.isLoaded && !audioReleasedRef.current) {
+      setIsAudioReady(true);
+    }
+  }, [status.isLoaded]);
+
+  // Initial animations on mount
+  useEffect(() => {
+    if (!canProceed()) return;
+
+    Animated.parallel([
+      Animated.timing(animations.fadeAnim, {
+        toValue: 1,
+        duration: 1500,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic)
+      }),
+      Animated.spring(animations.scaleAnim, {
+        toValue: 1,
+        friction: 3,
+        tension: 40,
+        useNativeDriver: true
+      })
+    ]).start();
 
     return () => {
-      intervalRef.current && clearInterval(intervalRef.current);
-      promptIntervalRef.current && clearInterval(promptIntervalRef.current);
-      if (player) {
-        player.pause();
-        player.remove();
-      }
+      isMountedRef.current = false;
     };
-  }, [player]);
+  }, [animations, canProceed]);
 
+  // Cleanup on unmount
   useEffect(() => {
-    if (secondsLeft === 0) {
-      // Clear intervals
-      intervalRef.current && clearInterval(intervalRef.current);
-      promptIntervalRef.current && clearInterval(promptIntervalRef.current);
-      
-      // Fade out audio before stopping
-      fadeOutAudio();
-      
-      setIsPlaying(false);
-      
-      Alert.alert(
-        '🙏 Prayer Complete',
-        'May God\'s peace and love remain with you always. Amen.',
-        [{ 
-          text: 'Amen', 
-          onPress: () => {
-            Animated.timing(fadeAnim, {
-              toValue: 0,
-              duration: 800,
-              useNativeDriver: true
-            }).start(() => router.back());
-          }
-        }]
-      );
-    }
-  }, [secondsLeft, player, router]);
+    return () => {
+      cleanupSession();
+    };
+  }, [cleanupSession]);
 
-  const startCelestialAnimations = () => {
+  // Handle session completion
+  useEffect(() => {
+    if (secondsLeft === 0 && !hasSessionEnded) {
+      setHasSessionEnded(true);
+      cleanupSession().then(() => {
+        if (!canProceed()) return;
+        
+        Alert.alert(
+          '🙏 Prayer Complete',
+          'May God\'s peace and love remain with you always. Amen.',
+          [{
+            text: 'Amen',
+            onPress: () => {
+              Animated.timing(animations.fadeAnim, {
+                toValue: 0,
+                duration: 800,
+                useNativeDriver: true
+              }).start(() => {
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace('/(tabs)/home');
+                }
+              });
+            }
+          }],
+          { cancelable: false }
+        );
+      });
+    }
+  }, [secondsLeft, hasSessionEnded, cleanupSession, animations.fadeAnim, router, canProceed]);
+
+  // Start celestial animations
+  const startCelestialAnimations = useCallback(() => {
+    if (!canProceed()) return;
+
     // Rotating glow effect
-    Animated.loop(
-      Animated.timing(rotateAnim, {
+    const rotateAnimation = Animated.loop(
+      Animated.timing(animations.rotateAnim, {
         toValue: 1,
         duration: 20000,
         useNativeDriver: true,
         easing: Easing.linear
       })
-    ).start();
+    );
 
     // Pulsing effect
-    Animated.loop(
+    const pulseAnimation = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, {
+        Animated.timing(animations.pulseAnim, {
           toValue: 1.15,
           duration: 2000,
           useNativeDriver: true,
           easing: Easing.inOut(Easing.sin)
         }),
-        Animated.timing(pulseAnim, {
+        Animated.timing(animations.pulseAnim, {
           toValue: 1,
           duration: 2000,
           useNativeDriver: true,
           easing: Easing.inOut(Easing.sin)
         })
       ])
-    ).start();
+    );
 
     // Glow intensity animation
-    Animated.loop(
+    const glowAnimation = Animated.loop(
       Animated.sequence([
-        Animated.timing(glowAnim, {
+        Animated.timing(animations.glowAnim, {
           toValue: 1,
           duration: 3000,
           useNativeDriver: true,
           easing: Easing.inOut(Easing.quad)
         }),
-        Animated.timing(glowAnim, {
+        Animated.timing(animations.glowAnim, {
           toValue: 0.5,
           duration: 3000,
           useNativeDriver: true,
           easing: Easing.inOut(Easing.quad)
         })
       ])
-    ).start();
+    );
 
     // Floating effect
-    Animated.loop(
+    const floatAnimation = Animated.loop(
       Animated.sequence([
-        Animated.timing(orbFloatAnim, {
+        Animated.timing(animations.orbFloatAnim, {
           toValue: -20,
           duration: 4000,
           useNativeDriver: true,
           easing: Easing.inOut(Easing.sin)
         }),
-        Animated.timing(orbFloatAnim, {
+        Animated.timing(animations.orbFloatAnim, {
           toValue: 20,
           duration: 4000,
           useNativeDriver: true,
           easing: Easing.inOut(Easing.sin)
         })
       ])
-    ).start();
+    );
 
-    // Ambient particles
+    // Start all animations
+    rotateAnimation.start();
+    pulseAnimation.start();
+    glowAnimation.start();
+    floatAnimation.start();
+
+    // Store references for cleanup
+    animationLoopsRef.current = [
+      rotateAnimation,
+      pulseAnimation,
+      glowAnimation,
+      floatAnimation
+    ];
+
+    // Animate particles
     particles.forEach((particle, index) => {
       const animateParticle = () => {
+        if (!canProceed()) return;
+
         particle.y.setValue(height);
         particle.x.setValue(Math.random() * width);
         particle.opacity.setValue(0);
 
-        Animated.parallel([
+        const particleAnimation = Animated.parallel([
           Animated.timing(particle.y, {
             toValue: -50,
             duration: 15000 + Math.random() * 10000,
@@ -220,144 +358,193 @@ export default function PrayerSession() {
               useNativeDriver: true
             })
           ])
-        ]).start(() => animateParticle());
+        ]);
+
+        particleAnimation.start(() => {
+          if (canProceed()) {
+            animateParticle();
+          }
+        });
+
+        animationLoopsRef.current.push(particleAnimation);
       };
 
-      setTimeout(() => animateParticle(), index * 2000);
+      setTimeout(() => {
+        if (canProceed()) {
+          animateParticle();
+        }
+      }, index * 2000);
     });
-  };
+  }, [animations, particles, canProceed]);
 
-  const animatePromptChange = () => {
+  // Animate prompt changes
+  const animatePromptChange = useCallback(() => {
+    if (!canProceed()) return;
+
     Animated.sequence([
-      Animated.timing(promptFadeAnim, {
+      Animated.timing(animations.promptFadeAnim, {
         toValue: 0,
         duration: 500,
         useNativeDriver: true
       }),
-      Animated.timing(promptFadeAnim, {
+      Animated.timing(animations.promptFadeAnim, {
         toValue: 1,
         duration: 500,
         useNativeDriver: true
       })
     ]).start();
-  };
+  }, [animations.promptFadeAnim, canProceed]);
 
-  const requestSilentModePermission = () => {
-    Alert.alert(
-      '🎵 Calming Music',
-      'To hear the soothing instrumental during your prayer session, we can play audio even if your device is in silent mode. Would you like to enable this?\n\n(You can toggle silent mode off manually anytime.)',
-      [
-        {
-          text: 'No, silent mode respected',
-          style: 'cancel',
-          onPress: () => {
-            // Proceed without override
-            proceedWithAudio(false);
-          }
-        },
-        {
-          text: 'Yes, play in silent mode',
-          onPress: () => {
-            setAllowSilentMode(true);
-            // Proceed with override
-            proceedWithAudio(true);
-          }
+  // Start timer
+  const startTimer = useCallback(() => {
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+    }
+
+    timerIntervalRef.current = setInterval(() => {
+      if (!canProceed()) {
+        if (timerIntervalRef.current) {
+          clearInterval(timerIntervalRef.current);
         }
-      ]
-    );
-  };
+        return;
+      }
+      
+      setSecondsLeft(prev => Math.max(0, prev - 1));
+    }, TIMER_INTERVAL);
+  }, [canProceed]);
 
-  const proceedWithAudio = async (playsInSilent: boolean) => {
-    try {
-      // Set audio mode based on permission (mixes with other audio to avoid interruptions)
-      await setAudioModeAsync({
-        playsInSilentMode: playsInSilent,
-        interruptionMode: 'mixWithOthers',
-        shouldRouteThroughEarpiece: true,
-        shouldPlayInBackground: true,
-      });
-
-      player.loop;
-      player.volume;
-      player.play();
-      setIsPlaying(true);
-      startTimer();
-      startCelestialAnimations();
-    } catch (error) {
-      console.error('Audio setup error:', error);
-      // If audio fails entirely, still start the session without music
-      setIsPlaying(true);
-      startTimer();
-      startCelestialAnimations();
-      Alert.alert('Notice', 'Music could not be loaded. Continuing with guided prayer.');
+  // Start prompt timer
+  const startPromptTimer = useCallback(() => {
+    if (promptIntervalRef.current) {
+      clearInterval(promptIntervalRef.current);
     }
-  };
 
-  const loadAndPlayAudio = async () => {
-    if (!allowSilentMode) {
-      requestSilentModePermission();
-    } else {
-      proceedWithAudio(true);
-    }
-  };
-
-  const startTimer = () => {
-    intervalRef.current = setInterval(() => {
-      setSecondsLeft((prev) => prev - 1);
-    }, 1000);
-
-    // Change prompts every 30 seconds for 3-minute session
     promptIntervalRef.current = setInterval(() => {
+      if (!canProceed()) {
+        if (promptIntervalRef.current) {
+          clearInterval(promptIntervalRef.current);
+        }
+        return;
+      }
+
       animatePromptChange();
       setTimeout(() => {
-        setCurrentPromptIndex((prev) => (prev + 1) % GUIDANCE_PROMPTS.length);
+        if (canProceed()) {
+          setCurrentPromptIndex(prev => (prev + 1) % GUIDANCE_PROMPTS.length);
+        }
       }, 500);
-    }, 30000);
-  };
+    }, PROMPT_CHANGE_INTERVAL);
+  }, [animatePromptChange, canProceed]);
 
-  const stopSession = async () => {
-    intervalRef.current && clearInterval(intervalRef.current);
-    promptIntervalRef.current && clearInterval(promptIntervalRef.current);
-    
-    // Fade out audio before stopping
-    if (player) {
-      await fadeOutAudio();
+  // Load and play audio
+  const loadAndPlayAudio = useCallback(async () => {
+    if (!isAudioReady || audioReleasedRef.current) {
+      if (!isAudioReady) {
+        Alert.alert('Loading', 'Preparing audio...');
+      }
+      return;
     }
-    
-    // Reset for next session
-    setAllowSilentMode(false);
-    
-    Animated.timing(fadeAnim, {
-      toValue: 0,
-      duration: 800,
-      useNativeDriver: true
-    }).start(() => {
-      setIsPlaying(false);
-      router.back();
-    });
-  };
+    try {
+      // Configure audio mode
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        interruptionMode: 'mixWithOthers',
+        interruptionModeAndroid:  'doNotMix',
+        shouldPlayInBackground: true,
+        shouldRouteThroughEarpiece: false,
+      });
 
-  const formatTime = (seconds: number) => {
+      if (player && status.isLoaded && !audioReleasedRef.current) {
+        player.loop = true;
+        player.volume = 0.7;
+        player.play();
+        
+        setIsPlaying(true);
+        startTimer();
+        startPromptTimer();
+        startCelestialAnimations();
+      }
+    } catch (error) {
+      console.error('Audio setup error:', error);
+      
+      // Continue without audio if it fails
+      Alert.alert(
+        'Notice',
+        'Music could not be loaded. Continuing with guided prayer.',
+        [{ 
+          text: 'Continue',
+          onPress: () => {
+            setIsPlaying(true);
+            startTimer();
+            startPromptTimer();
+            startCelestialAnimations();
+          }
+        }],
+        { cancelable: false }
+      );
+    }
+  }, [
+    isAudioReady,
+    canProceed,
+    player,
+    status.isLoaded,
+    startTimer,
+    startPromptTimer,
+    startCelestialAnimations
+  ]);
+
+  // Handle stop and go back
+  const handleStopAndGoBack = useCallback(async () => {
+    await cleanupSession();
+    
+    Animated.timing(animations.fadeAnim, {
+      toValue: 0,
+      duration: 500,
+      useNativeDriver: true,
+    }).start(() => {
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)/home');
+      }
+    });
+  }, [cleanupSession, animations.fadeAnim, router]);
+
+  // Format time helper
+  const formatTime = useCallback((seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+  }, []);
 
-  if (!dailyVerse) {
-    return (
-      <SafeAreaView className="flex-1 justify-center items-center bg-background">
-        <Text className="text-foreground">No verse provided</Text>
-      </SafeAreaView>
-    );
-  }
-
-  const spin = rotateAnim.interpolate({
+  // Interpolate rotation
+  const spin = animations.rotateAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg']
   });
 
+  // Handle missing verse
+  if (!dailyVerse) {
+    return (
+      <SafeAreaView className="flex-1 justify-center items-center bg-background">
+        <Text className="text-foreground">No verse provided</Text>
+        <Pressable
+          onPress={() => router.back()}
+          style={{ marginTop: 20, padding: 10 }}
+        >
+          <Text className="text-primary">Go Back</Text>
+        </Pressable>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <Modal visible={true} animationType="fade" statusBarTranslucent={true}>
+    <Modal 
+      visible={true} 
+      animationType="fade" 
+      statusBarTranslucent={true}
+      onRequestClose={handleStopAndGoBack}
+    >
       <LinearGradient
         colors={isDark 
           ? ['#0a0a0f', '#1a1a2e', '#16213e']
@@ -367,11 +554,11 @@ export default function PrayerSession() {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+        <Animated.View style={{ flex: 1, opacity: animations.fadeAnim }}>
           {/* Ambient Particles */}
           {particles.map((particle, index) => (
             <Animated.View
-              key={index}
+              key={`particle-${index}`}
               style={{
                 position: 'absolute',
                 width: 4,
@@ -391,7 +578,7 @@ export default function PrayerSession() {
             <View style={{ flex: 1, padding: 20 }}>
               {/* Back Button */}
               <Pressable
-                onPress={stopSession}
+                onPress={handleStopAndGoBack}
                 style={{
                   position: 'absolute',
                   top: 50,
@@ -401,6 +588,8 @@ export default function PrayerSession() {
                   borderRadius: 25,
                   backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
                 }}
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
               >
                 <Text style={{ 
                   color: isDark ? '#ffffff' : '#000000',
@@ -416,8 +605,8 @@ export default function PrayerSession() {
                 {/* Celestial Orb */}
                 <Animated.View style={{
                   transform: [
-                    { scale: scaleAnim },
-                    { translateY: orbFloatAnim }
+                    { scale: animations.scaleAnim },
+                    { translateY: animations.orbFloatAnim }
                   ],
                   marginBottom: 40
                 }}>
@@ -428,11 +617,11 @@ export default function PrayerSession() {
                     height: 300,
                     borderRadius: 150,
                     backgroundColor: isDark ? '#ffd700' : '#ffaa00',
-                    opacity: glowAnim.interpolate({
+                    opacity: animations.glowAnim.interpolate({
                       inputRange: [0.5, 1],
                       outputRange: [0.05, 0.15]
                     }),
-                    transform: [{ scale: pulseAnim }, { rotate: spin }]
+                    transform: [{ scale: animations.pulseAnim }, { rotate: spin }]
                   }} />
                   
                   <Animated.View style={{
@@ -443,11 +632,11 @@ export default function PrayerSession() {
                     top: 25,
                     borderRadius: 125,
                     backgroundColor: isDark ? '#ffed4e' : '#ffcc00',
-                    opacity: glowAnim.interpolate({
+                    opacity: animations.glowAnim.interpolate({
                       inputRange: [0.5, 1],
                       outputRange: [0.1, 0.25]
                     }),
-                    transform: [{ scale: pulseAnim }]
+                    transform: [{ scale: animations.pulseAnim }]
                   }} />
 
                   {/* Core orb */}
@@ -457,7 +646,7 @@ export default function PrayerSession() {
                     left: 50,
                     top: 50,
                     borderRadius: 100,
-                    transform: [{ scale: pulseAnim }],
+                    transform: [{ scale: animations.pulseAnim }],
                     shadowColor: '#ffd700',
                     shadowOffset: { width: 0, height: 0 },
                     shadowOpacity: 0.8,
@@ -480,14 +669,18 @@ export default function PrayerSession() {
                       end={{ x: 1, y: 1 }}
                     >
                       {/* Timer inside orb */}
-                      <Text style={{
-                        fontSize: 42,
-                        fontWeight: 'bold',
-                        color: isDark ? '#1a1a2e' : '#16213e',
-                        textShadowColor: 'rgba(255, 255, 255, 0.5)',
-                        textShadowOffset: { width: 0, height: 1 },
-                        textShadowRadius: 3
-                      }}>
+                      <Text 
+                        style={{
+                          fontSize: 42,
+                          fontWeight: 'bold',
+                          color: isDark ? '#1a1a2e' : '#16213e',
+                          textShadowColor: 'rgba(255, 255, 255, 0.5)',
+                          textShadowOffset: { width: 0, height: 1 },
+                          textShadowRadius: 3
+                        }}
+                        accessibilityRole="timer"
+                        accessibilityLabel={`${formatTime(secondsLeft)} remaining`}
+                      >
                         {formatTime(secondsLeft)}
                       </Text>
                     </LinearGradient>
@@ -498,20 +691,24 @@ export default function PrayerSession() {
                 <Animated.View style={{
                   paddingHorizontal: 30,
                   marginBottom: 30,
-                  opacity: promptFadeAnim,
-                  transform: [{ scale: scaleAnim }]
+                  opacity: animations.promptFadeAnim,
+                  transform: [{ scale: animations.scaleAnim }]
                 }}>
-                  <Text style={{
-                    fontSize: 18,
-                    fontStyle: 'italic',
-                    textAlign: 'center',
-                    color: isDark ? '#ffd700' : '#ff8c00',
-                    fontWeight: '500',
-                    lineHeight: 26,
-                    textShadowColor: isDark ? 'rgba(255, 215, 0, 0.3)' : 'rgba(255, 140, 0, 0.2)',
-                    textShadowOffset: { width: 0, height: 1 },
-                    textShadowRadius: 4
-                  }}>
+                  <Text 
+                    style={{
+                      fontSize: 18,
+                      fontStyle: 'italic',
+                      textAlign: 'center',
+                      color: isDark ? '#ffd700' : '#ff8c00',
+                      fontWeight: '500',
+                      lineHeight: 26,
+                      textShadowColor: isDark ? 'rgba(255, 215, 0, 0.3)' : 'rgba(255, 140, 0, 0.2)',
+                      textShadowOffset: { width: 0, height: 1 },
+                      textShadowRadius: 4
+                    }}
+                    accessibilityRole="text"
+                    accessibilityLabel={`Bible verse: ${dailyVerse}`}
+                  >
                     "{dailyVerse}"
                   </Text>
                 </Animated.View>
@@ -523,17 +720,21 @@ export default function PrayerSession() {
                   backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
                   borderRadius: 20,
                   marginBottom: 30,
-                  opacity: promptFadeAnim,
+                  opacity: animations.promptFadeAnim,
                   borderWidth: 1,
                   borderColor: isDark ? 'rgba(255,215,0,0.2)' : 'rgba(255,140,0,0.15)'
                 }}>
-                  <Text style={{
-                    fontSize: 16,
-                    textAlign: 'center',
-                    color: isDark ? '#ffffff' : '#333333',
-                    lineHeight: 24,
-                    fontWeight: '400'
-                  }}>
+                  <Text 
+                    style={{
+                      fontSize: 16,
+                      textAlign: 'center',
+                      color: isDark ? '#ffffff' : '#333333',
+                      lineHeight: 24,
+                      fontWeight: '400'
+                    }}
+                    accessibilityRole="text"
+                    accessibilityLabel={`Guidance: ${GUIDANCE_PROMPTS[currentPromptIndex]}`}
+                  >
                     {GUIDANCE_PROMPTS[currentPromptIndex]}
                   </Text>
                 </Animated.View>
@@ -553,6 +754,10 @@ export default function PrayerSession() {
                       shadowRadius: 8,
                       elevation: 10
                     }}
+                    disabled={!isAudioReady || hasSessionEnded}
+                    accessibilityRole="button"
+                    accessibilityLabel={isAudioReady ? 'Begin prayer session' : 'Loading audio'}
+                    accessibilityState={{ disabled: !isAudioReady || hasSessionEnded }}
                   >
                     <Text style={{
                       fontSize: 18,
@@ -560,12 +765,12 @@ export default function PrayerSession() {
                       color: isDark ? '#1a1a2e' : '#ffffff',
                       letterSpacing: 1
                     }}>
-                      Begin Prayer
+                      {isAudioReady ? 'Begin Prayer' : 'Loading Audio...'}
                     </Text>
                   </Pressable>
                 ) : (
                   <Pressable
-                    onPress={stopSession}
+                    onPress={handleStopAndGoBack}
                     style={{
                       paddingHorizontal: 50,
                       paddingVertical: 18,
@@ -574,6 +779,8 @@ export default function PrayerSession() {
                       borderWidth: 2,
                       borderColor: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)'
                     }}
+                    accessibilityRole="button"
+                    accessibilityLabel="End prayer session"
                   >
                     <Text style={{
                       fontSize: 18,
@@ -589,7 +796,7 @@ export default function PrayerSession() {
                 {isPlaying && (
                   <Animated.View style={{
                     marginTop: 20,
-                    opacity: glowAnim
+                    opacity: animations.glowAnim
                   }}>
                     <Text style={{
                       fontSize: 14,

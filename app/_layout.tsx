@@ -21,10 +21,6 @@ export {
   ErrorBoundary,
 } from 'expo-router';
 
-// Global error handler
-ErrorUtils.setGlobalHandler((error, isFatal) => {
-  console.error('Global runtime error:', error, isFatal);
-});
 
 // Access env vars correctly for all environments
 const convexUrl = Constants.expoConfig?.extra?.EXPO_PUBLIC_CONVEX_URL;
@@ -126,8 +122,7 @@ function Routes() {
 
   return (
     <Stack>
-      {!isSignedIn ? (
-        <>
+     <Stack.Protected guard={!isSignedIn}>
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="quizzes" options={{ headerShown: false }} />
           <Stack.Screen name="onboarding" options={{ headerShown: false }} />
@@ -135,14 +130,14 @@ function Routes() {
           <Stack.Screen name="(auth)/sign-up" options={SIGN_UP_SCREEN_OPTIONS} />
           <Stack.Screen name="(auth)/reset-password" options={DEFAULT_AUTH_SCREEN_OPTIONS} />
           <Stack.Screen name="(auth)/forgot-password" options={DEFAULT_AUTH_SCREEN_OPTIONS} />
-        </>
-      ) : (
-        <>
+     </Stack.Protected>
+        
+
+        <Stack.Protected guard={isSignedIn}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="account" options={{ headerShown: false }} />
           <Stack.Screen name="prayer-session" options={{ headerShown: false }} />
-        </>
-      )}
+        </Stack.Protected>
     </Stack>
   );
 }
