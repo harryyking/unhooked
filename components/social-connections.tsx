@@ -62,19 +62,49 @@ export function SocialConnections() {
 
         console.log('Starting SSO flow with redirectUrl:', redirectUrl);
 
-        const { createdSessionId, setActive, signIn } = await startSSOFlow({
+        // --- UPDATED: Destructure signUp to handle new user flows ---
+        const { createdSessionId, setActive, signIn, signUp } = await startSSOFlow({
           strategy,
           redirectUrl, // Use the generated and configured redirectUrl
         });
         // --- FIX END ---
 
-        // If sign in was successful, set the active session
+        // 1. If sign in was successful (most common path), set the active session
         if (createdSessionId && setActive) {
           setActive({ session: createdSessionId });
           return;
         }
 
-        // TODO: Handle other statuses (like MFA requirements)
+        // 2. If no session was created, check if Clerk returned a partial signIn or signUp object.
+        // This means further steps (like MFA or completing sign-up fields) are required.
+        if (signIn || signUp) {
+          const nextStep = signIn?.status || signUp?.status;
+          
+          // Log the state for debugging
+          console.warn('SSO requires further action:', { 
+            nextStep, 
+            signInStatus: signIn?.status, 
+            signUpStatus: signUp?.status, 
+            sessionId: createdSessionId 
+          });
+
+          // Inform the user that extra steps are needed.
+          Alert.alert(
+            'Action Required', 
+            `Social login needs to complete the '${nextStep}' step. This usually means a final sign-up field or MFA is needed.`,
+          );
+          
+          // In a full application, you would use 'router.push()' here to navigate 
+          // the user to the correct screen (e.g., /mfa, /complete-signup).
+          return;
+        }
+        
+        // 3. Fallback for unexpected successful flow without a session or next step
+        Alert.alert(
+          'Login Failed', 
+          'Social login succeeded but failed to create a user session. Please check your Clerk dashboard settings.',
+        );
+
       } catch (err) {
         // --- ERROR HANDLING FIX: Use Alert for visibility on native devices/production ---
         const errorDetails = err instanceof Error ? err.message : 'An unknown error occurred.';
