@@ -9,8 +9,9 @@ import { Alert, Image, Platform, View, type ImageSourcePropType } from 'react-na
 import * as AuthSession from 'expo-auth-session';
 import { StartSSOFlowParams, useSSO } from '@clerk/clerk-expo';
 
-// IMPORTANT: REPLACE 'myappscheme' with the actual scheme defined in your app.json
-// Example: If your app.json has "scheme": "my-app-name", set this to 'my-app-name'.
+// IMPORTANT: The scheme has been updated to 'unhooked'.
+// ENSURE this scheme is correctly defined in your app.json and configured 
+// as an Authorized Redirect URI in the Clerk Dashboard.
 const APP_SCHEME = 'unhooked'; 
 
 
@@ -49,14 +50,15 @@ export function SocialConnections() {
     return async () => {
       try {
         // --- FIX START: Explicitly defining the redirect URL for production native builds ---
-        const redirectUrl = AuthSession.makeRedirectUri({ 
-          scheme: Platform.select({ 
-            // Use the specific scheme for native apps
-            native: APP_SCHEME,
-            // For web, AuthSession defaults to the current path, which is usually correct.
-            web: undefined,
-          }),
-        });
+        const redirectUrl = AuthSession.makeRedirectUri(Platform.select({ 
+          native: {
+            // Use the specific scheme and path for native apps (unhooked://auth)
+            scheme: APP_SCHEME,
+            path: 'auth', 
+          },
+          // For web, AuthSession defaults to the current path, which is usually correct.
+          web: {},
+        }));
 
         console.log('Starting SSO flow with redirectUrl:', redirectUrl);
 
