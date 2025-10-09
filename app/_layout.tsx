@@ -23,8 +23,8 @@ export {
 
 
 // Access env vars correctly for all environments
-const convexUrl = process.env.EXPO_PUBLIC_CONVEX_URL!;
-const clerkKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
+const convexUrl = process.env.EXPO_PUBLIC_CONVEX_URL;
+const clerkKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
 // Strict validation with early exit
 if (!convexUrl || !clerkKey) {
