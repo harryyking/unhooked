@@ -23,8 +23,8 @@ export {
 
 
 // Access env vars correctly for all environments
-const convexUrl = process.env.EXPO_PUBLIC_CONVEX_URL || Constants.expoConfig?.extra?.EXPO_PUBLIC_CONVEX_URL;
-const clerkKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY || Constants.expoConfig?.extra?.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
+const convexUrl = process.env.EXPO_PUBLIC_CONVEX_URL
+const clerkKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY 
 
 // Strict validation with early exit
 if (!convexUrl || !clerkKey) {
@@ -89,17 +89,20 @@ function Routes() {
 
   React.useEffect(() => {
     let timeout: ReturnType<typeof setTimeout> | null = null; 
-
+  
     if (isLoaded) {
       SplashScreen.hideAsync().catch((err) => console.warn('Splash hide error:', err));
     } else {
-      // Set a reasonable timeout to prevent infinite splash (increased to 10s for safety)
+      // Increase to at least 4000ms (4 seconds)
       timeout = setTimeout(() => {
         console.warn('Auth loading timeout—hiding splash manually');
         SplashScreen.hideAsync().catch((err) => console.warn('Splash hide error:', err));
-      }, 500);
+      }, 4000); // <--- Increased timeout
+  
+      // NOTE: If isLoaded never becomes true (e.g., Clerk API call fails due to the environment variable being wrong), 
+      // this timeout will hide the splash and show your loading screen after 4 seconds.
     }
-
+  
     return () => {
       if (timeout) clearTimeout(timeout);
     };
