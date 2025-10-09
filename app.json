@@ -56,9 +56,7 @@
     "experiments": {
       "typedRoutes": true
     },
-    "extra": {
-      "EXPO_PUBLIC_CONVEX_URL": "https://acrobatic-hawk-359.convex.cloud",
-      "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsudW5ob29rZWQueHl6JA",  
+    "extra": { 
       "router": {},
       "eas": {
         "projectId": "bd0f805e-e36c-479c-b76c-041d24e8a602"
