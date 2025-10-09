@@ -97,7 +97,7 @@ function Routes() {
       timeout = setTimeout(() => {
         console.warn('Auth loading timeout—hiding splash manually');
         SplashScreen.hideAsync().catch((err) => console.warn('Splash hide error:', err));
-      }, 10000);
+      }, 500);
     }
 
     return () => {
