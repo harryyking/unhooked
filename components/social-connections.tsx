@@ -7,107 +7,184 @@ import * as React from 'react';
 import { Text } from './ui/text';
 import { Alert, Image, Platform, View, type ImageSourcePropType } from 'react-native';
 import * as AuthSession from 'expo-auth-session';
-import { StartSSOFlowParams, useSSO } from '@clerk/clerk-expo';// Call this at the module level to handle pending auth sessions
+import { useClerk, useSSO } from '@clerk/clerk-expo';
+import * as Crypto from 'expo-crypto'
+// Call this at the module level to handle pending auth sessions
 WebBrowser.maybeCompleteAuthSession();
-
 
 // IMPORTANT: Ensure your app's scheme (e.g., 'unhooked') is defined in app.json under "expo.scheme".
 // In Clerk Dashboard > API Keys > Authorized redirect URIs, add the exact URI your app generates, e.g., 'unhooked://auth' (without trailing slash).
 // If Clerk only accepts with '/auth', use path: 'auth' in makeRedirectUri to match.
 // For one-click sign-in: In Clerk Dashboard > User & Authentication > Sign-up, make all fields optional or enable progressive sign-up.
-// Disable any MFA under Multi-factor. This ensures no pending steps after OAuth.const APP_SCHEME = 'unhooked'; 
+// Disable any MFA under Multi-factor. This ensures no pending steps after OAuth.
+// For native Apple: Install expo-apple-authentication, add to app.json plugins, and enable entitlements in EAS build.
+// Convex URL: Set EXPO_PUBLIC_CONVEX_URL in your env for the /apple-signin endpoint.
 
+const APP_SCHEME = 'unhooked';
+const CONVEX_URL = process.env.EXPO_PUBLIC_CONVEX_URL; // e.g., 'https://your-app.convex.cloud'
 
-const APP_SCHEME = 'unhooked'; 
-
-type SocialConnectionStrategy = Extract<
-  StartSSOFlowParams['strategy'],
-  'oauth_google'| 'oauth_apple'
->;
+type SocialConnectionStrategy = 'oauth_google' | 'oauth_github' | 'oauth_apple';
 
 const SOCIAL_CONNECTION_STRATEGIES: {
   type: SocialConnectionStrategy;
   source: ImageSourcePropType;
+  label: string;
   useTint?: boolean;
 }[] = [
   {
     type: 'oauth_apple',
     source: { uri: 'https://img.clerk.com/static/apple.png?width=160' },
+    label: 'Apple',
     useTint: true,
   },
   {
     type: 'oauth_google',
     source: { uri: 'https://img.clerk.com/static/google.png?width=160' },
+    label: 'Google',
     useTint: false,
   },
-];export function SocialConnections() {
+];
+
+export function SocialConnections() {
   useWarmUpBrowser();
   const { colorScheme } = useColorScheme();
-  const { startSSOFlow } = useSSO();  function onSocialLoginPress(strategy: SocialConnectionStrategy) {
-    return async () => {
-      try {
-        // Generate the platform-specific redirect URL matching your Clerk dashboard (e.g., unhooked://auth)
-        const redirectUrl = AuthSession.makeRedirectUri(Platform.select({ 
-          native: {
-            scheme: APP_SCHEME,
-            path: 'auth',  // Included as per your note—Clerk requires/accepts this path
-          },
-          web: {},
-        }));    console.log('Starting SSO flow with redirectUrl:', redirectUrl);
+  const { startSSOFlow } = useSSO(); // Destructure setActive for native flow
+  const { setActive: clerkSetActive, loaded } = useClerk();
 
-    const { createdSessionId, setActive, signIn, signUp } = await startSSOFlow({
-      strategy,
-      redirectUrl,
-    });
-
-    if (createdSessionId && setActive) {
-      await setActive({ session: createdSessionId });
-      // Optional: Navigate to home or let Protected stacks handle rerender
-      // router.replace('/(tabs)');
+  const onSocialLoginPress = (strategy: SocialConnectionStrategy) => async () => {
+    if (!loaded) {
       return;
     }
+    try {
+      // Native Apple flow for iOS (iPhone/iPad) - seamless, compliant UX
+      if (strategy === 'oauth_apple' && Platform.OS === 'ios') {
 
-    // Handle pending state (e.g., if unexpected sign-up fields or MFA—shouldn't happen if config is one-click)
-    if (signIn || signUp) {     
-      return;
+        const { default: AppleAuthentication } = await import('expo-apple-authentication');
+
+        const nonce = await Crypto.digestStringAsync(
+          Crypto.CryptoDigestAlgorithm.SHA256,
+          Math.random().toString(36) + Date.now().toString()
+        );  
+
+        const credential = await AppleAuthentication.signInAsync({
+          requestedScopes: [
+            AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+            AppleAuthentication.AppleAuthenticationScope.EMAIL,
+          ],
+          nonce
+        });
+
+        if (!credential) {
+          return; // User canceled
+        }
+
+        // Send native credential to Convex backend for verification and session creation
+        const response = await fetch(`${CONVEX_URL}/api/apple-signin`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            identityToken: credential.identityToken,
+            fullName: credential.fullName, // { givenName, familyName } - only on first sign-in
+            email: credential.email,
+            nonce
+          }),
+          
+        });
+
+        if (!response.ok) {
+          throw new Error('Backend authentication failed');
+        }
+
+        const { createdSessionId } = await response.json();
+
+        if (createdSessionId) {
+          await clerkSetActive({ session: createdSessionId });
+          // Let protected routes handle navigation
+          return;
+        }
+
+        throw new Error('No session created');
+      }
+
+      // Web/OAuth fallback for non-iOS (Android/Web) or other strategies
+      const redirectUrl = AuthSession.makeRedirectUri({
+        scheme: APP_SCHEME,
+        path: 'auth', // Included as per config—Clerk requires/accepts this path
+      });
+
+
+      const { createdSessionId, signIn, signUp, setActive } = await startSSOFlow({
+        strategy,
+        redirectUrl,
+      });
+
+      if (createdSessionId && setActive) {
+        await setActive({ session: createdSessionId });
+        return;
+      }
+
+      // Handle pending state silently (unlikely with one-click config; no user alert)
+      if (signIn || signUp) {
+        // Optionally redirect to continue screen
+        // router.push('/continue-sign-up');
+        return;
+      }
+
+      // Fallback for unexpected issues
+      throw new Error('Unexpected authentication state');
+
+    } catch (err) {
+      // Graceful error handling: User-friendly message, internal logging only in dev
+      const isCanceled = err instanceof Error && (err.message === 'ERR_CANCELED' || err.message.includes('canceled'));
+      if (isCanceled) {
+        // User dismissed prompt - no action needed
+        return;
+      }
+
+      const errorDetails = err instanceof Error ? err.message : 'An unknown error occurred.';
+      if (__DEV__) {
+        console.error('SSO Error:', errorDetails, err);
+      }
+      // Generic, non-technical alert
+      Alert.alert(
+        'Sign In Issue',
+        'Could not complete sign-in. Please try again or use another method.',
+        [{ text: 'OK' }]
+      );
     }
+  };
 
-    // Fallback alert for unexpected issues
-    Alert.alert('Login Failed', 'An unexpected error occurred. Please try again.');
-
-  } catch (err) {
-    const errorDetails = err instanceof Error ? err.message : 'An unknown error occurred.';
-    // Log errors internally (e.g., to Sentry) instead of console in production
-    if (__DEV__) {
-      console.error('SSO Error:', errorDetails);
-    }
-    Alert.alert('Login Failed', 'Could not complete login. Please try again.')
-  }
-};  }  return (
-    <View className="gap-2 sm:flex-row sm:gap-3">
+  return (
+    <View className="gap-2 flex-col">
       {SOCIAL_CONNECTION_STRATEGIES.map((strategy) => (
-        // Conditionally render Apple only on iOS for better UX (optional)
+        // Conditionally render Apple only on iOS for native button; fallback for others
         (strategy.type !== 'oauth_apple' || Platform.OS === 'ios') ? (
-          <Button
-            key={strategy.type}
-            variant="outline"
-            size="lg"
-            className="sm:flex-1 gap-4"
-            onPress={onSocialLoginPress(strategy.type)}
-          >
-            <Image
-              className={cn('size-4', strategy.useTint && Platform.select({ web: 'dark:invert' }))}
-              tintColor={Platform.select({
-                native: strategy.useTint ? (colorScheme === 'dark' ? 'white' : 'black') : undefined,
-              })}
-              source={strategy.source}
-            />
-          </Button>
+          <View key={strategy.type} className="w-full">
+            <Button
+              variant="outline"
+              size="lg"
+              className="w-full gap-4 items-center"
+              onPress={onSocialLoginPress(strategy.type)}
+              accessibilityLabel={`Continue with ${strategy.label}`} // Accessibility best practice
+            >
+              <Image
+                className={cn('size-4', strategy.useTint && Platform.select({ web: 'dark:invert' }))}
+                tintColor={Platform.select({
+                  native: strategy.useTint ? (colorScheme === 'dark' ? 'white' : 'black') : undefined,
+                })}
+                source={strategy.source}
+                accessibilityIgnoresInvertColors={true} // Prevents color inversion issues
+              />
+              <Text className="text-foreground">Continue with {strategy.label}</Text>
+            </Button>
+          </View>
         ) : null
       ))}
     </View>
   );
-}const useWarmUpBrowser = () => {
+}
+
+const useWarmUpBrowser = () => {
   React.useEffect(() => {
     if (Platform.OS !== 'web') {
       void WebBrowser.warmUpAsync();
@@ -115,4 +192,3 @@ const SOCIAL_CONNECTION_STRATEGIES: {
     }
   }, []);
 };
-

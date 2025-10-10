@@ -13,6 +13,7 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
+import type * as actions from "../actions.js";
 import type * as devotional from "../devotional.js";
 import type * as http from "../http.js";
 import type * as invite from "../invite.js";
@@ -30,6 +31,7 @@ import type * as user from "../user.js";
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  actions: typeof actions;
   devotional: typeof devotional;
   http: typeof http;
   invite: typeof invite;
