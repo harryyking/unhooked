@@ -58,6 +58,7 @@ export default function PrayerSession() {
   
   // State
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(INITIAL_SECONDS);
   const [currentPromptIndex, setCurrentPromptIndex] = useState(0);
   const [isAudioReady, setIsAudioReady] = useState(false);
@@ -68,8 +69,6 @@ export default function PrayerSession() {
 
   // Refs for cleanup
   const isMountedRef = useRef(true);
-  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const promptIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const animationLoopsRef = useRef<Animated.CompositeAnimation[]>([]);
   const appStateRef = useRef(AppState.currentState);
   const audioReleasedRef = useRef(false);
@@ -105,18 +104,6 @@ export default function PrayerSession() {
     return isMountedRef.current && !hasSessionEnded && !sessionCleanedUpRef.current;
   }, [hasSessionEnded]);
 
-  // Clean up all intervals
-  const clearAllIntervals = useCallback(() => {
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-      timerIntervalRef.current = null;
-    }
-    if (promptIntervalRef.current) {
-      clearInterval(promptIntervalRef.current);
-      promptIntervalRef.current = null;
-    }
-  }, []);
-
   // Stop all animations
   const stopAllAnimations = useCallback(() => {
     animationLoopsRef.current.forEach(animation => animation.stop());
@@ -143,30 +130,29 @@ export default function PrayerSession() {
     if (sessionCleanedUpRef.current) return;
     sessionCleanedUpRef.current = true;
 
-    clearAllIntervals();
     stopAllAnimations();
     await releaseAudioSafely();
     setIsPlaying(false);
-  }, [clearAllIntervals, stopAllAnimations, releaseAudioSafely]);
+    setIsPaused(false);
+  }, [stopAllAnimations, releaseAudioSafely]);
 
   // Handle app state changes (background/foreground)
   useEffect(() => {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       if (appStateRef.current.match(/active/) && nextAppState === 'background') {
         // App going to background - pause session
-        if (isPlaying) {
-          clearAllIntervals();
+        if (isPlaying && !isPaused) {
+          setIsPaused(true);
           if (player && status.isLoaded && !audioReleasedRef.current) {
-            player.pause()
+            player.pause();
           }
         }
       } else if (appStateRef.current.match(/background/) && nextAppState === 'active') {
         // App coming to foreground - resume if was playing
-        if (isPlaying && !hasSessionEnded) {
-          startTimer();
-          startPromptTimer();
+        if (isPlaying && isPaused && !hasSessionEnded) {
+          setIsPaused(false);
           if (player && status.isLoaded && !audioReleasedRef.current) {
-            player.play()
+            player.play();
           }
         }
       }
@@ -175,7 +161,7 @@ export default function PrayerSession() {
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => subscription.remove();
-  }, [isPlaying, hasSessionEnded, player, status.isLoaded]);
+  }, [isPlaying, isPaused, hasSessionEnded, player, status.isLoaded]);
 
   // Set audio ready when loaded
   useEffect(() => {
@@ -246,6 +232,33 @@ export default function PrayerSession() {
       });
     }
   }, [secondsLeft, hasSessionEnded, cleanupSession, animations.fadeAnim, router, canProceed]);
+
+  // Timer effect
+  useEffect(() => {
+    if (!isPlaying || isPaused || hasSessionEnded || !canProceed()) return;
+
+    const interval = setInterval(() => {
+      setSecondsLeft(prev => Math.max(0, prev - 1));
+    }, TIMER_INTERVAL);
+
+    return () => clearInterval(interval);
+  }, [isPlaying, isPaused, hasSessionEnded, canProceed]);
+
+  // Prompt change effect
+  useEffect(() => {
+    if (!isPlaying || isPaused || hasSessionEnded || !canProceed()) return;
+
+    const interval = setInterval(() => {
+      animatePromptChange();
+      setTimeout(() => {
+        if (canProceed()) {
+          setCurrentPromptIndex(prev => (prev + 1) % GUIDANCE_PROMPTS.length);
+        }
+      }, 500);
+    }, PROMPT_CHANGE_INTERVAL);
+
+    return () => clearInterval(interval);
+  }, [isPlaying, isPaused, hasSessionEnded, canProceed, animatePromptChange]);
 
   // Start celestial animations
   const startCelestialAnimations = useCallback(() => {
@@ -395,47 +408,6 @@ export default function PrayerSession() {
     ]).start();
   }, [animations.promptFadeAnim, canProceed]);
 
-  // Start timer
-  const startTimer = useCallback(() => {
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-    }
-
-    timerIntervalRef.current = setInterval(() => {
-      if (!canProceed()) {
-        if (timerIntervalRef.current) {
-          clearInterval(timerIntervalRef.current);
-        }
-        return;
-      }
-      
-      setSecondsLeft(prev => Math.max(0, prev - 1));
-    }, TIMER_INTERVAL);
-  }, [canProceed]);
-
-  // Start prompt timer
-  const startPromptTimer = useCallback(() => {
-    if (promptIntervalRef.current) {
-      clearInterval(promptIntervalRef.current);
-    }
-
-    promptIntervalRef.current = setInterval(() => {
-      if (!canProceed()) {
-        if (promptIntervalRef.current) {
-          clearInterval(promptIntervalRef.current);
-        }
-        return;
-      }
-
-      animatePromptChange();
-      setTimeout(() => {
-        if (canProceed()) {
-          setCurrentPromptIndex(prev => (prev + 1) % GUIDANCE_PROMPTS.length);
-        }
-      }, 500);
-    }, PROMPT_CHANGE_INTERVAL);
-  }, [animatePromptChange, canProceed]);
-
   // Load and play audio
   const loadAndPlayAudio = useCallback(async () => {
     if (!isAudioReady || audioReleasedRef.current) {
@@ -460,8 +432,6 @@ export default function PrayerSession() {
         player.play();
         
         setIsPlaying(true);
-        startTimer();
-        startPromptTimer();
         startCelestialAnimations();
       }
     } catch (error) {
@@ -475,8 +445,6 @@ export default function PrayerSession() {
           text: 'Continue',
           onPress: () => {
             setIsPlaying(true);
-            startTimer();
-            startPromptTimer();
             startCelestialAnimations();
           }
         }],
@@ -488,8 +456,6 @@ export default function PrayerSession() {
     canProceed,
     player,
     status.isLoaded,
-    startTimer,
-    startPromptTimer,
     startCelestialAnimations
   ]);
 
@@ -702,7 +668,7 @@ export default function PrayerSession() {
                       color: isDark ? '#ffd700' : '#ff8c00',
                       fontWeight: '500',
                       lineHeight: 26,
-                      textShadowColor: isDark ? 'rgba(255, 215, 0, 0.3)' : 'rgba(255, 140, 0, 0.2)',
+                      textShadowColor: isDark ? 'rgba(255,215,0,0.3)' : 'rgba(255,140,0,0.2)',
                       textShadowOffset: { width: 0, height: 1 },
                       textShadowRadius: 4
                     }}
