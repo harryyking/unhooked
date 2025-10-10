@@ -7,6 +7,7 @@ import { useAuth } from '@clerk/clerk-expo';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type ProgressLog = {
   _id: Id<'progress'>;
@@ -81,7 +82,7 @@ const Journal = () => {
   }
 
   return (
-    <View className="flex-1 bg-background">
+    <SafeAreaView className="flex-1 bg-background">
       <View className="px-4 pt-2 pb-3 bg-background border-b border-border">
         <Text className="text-3xl font-bold text-foreground">Journal</Text>
         <Text className="text-sm text-muted-foreground mt-1">
@@ -187,7 +188,7 @@ const Journal = () => {
         )}
         ItemSeparatorComponent={() => <View className="h-0" />}
       />
-    </View>
+    </SafeAreaView>
   );
 };
 
