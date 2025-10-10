@@ -93,9 +93,9 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="resources"
+        name="journal"
         options={{
-          title: 'Resources',
+          title: 'Journal',
           tabBarIcon: ({ focused, color }) => (
             <AnimatedTabBarIcon IconComponent={LibraryBig} focused={focused} color={color} />
           ),

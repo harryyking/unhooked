@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, ScrollView, Switch, TouchableOpacity, Linking, Share, Alert } from 'react-native';
+import { View, ScrollView, Switch, TouchableOpacity, Linking, Share, Alert, Platform } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons, Feather } from '@expo/vector-icons';
@@ -7,23 +7,24 @@ import { useColorScheme } from 'nativewind';
 import { useRouter } from 'expo-router';
 import NetInfo from '@react-native-community/netinfo';
 import * as SecureStore from 'expo-secure-store';
-import { enableReminders, cancelReminders } from '@/lib/reminders'; // Import from RootLayout
-import { useClerk } from '@clerk/clerk-expo'; // Clerk sign out integration
+import * as Haptics from 'expo-haptics';
+import { enableReminders, cancelReminders } from '@/lib/reminders';
+import { useClerk } from '@clerk/clerk-expo';
 
 // iOS-style settings group component
 const SettingsGroup = React.memo(
   ({ title, children, footerText }: { title?: string; children: React.ReactNode; footerText?: string }) => (
-    <View className="mb-8">
+    <View className="mb-6">
       {title && (
-        <Text className="text-sm font-medium text-muted-foreground uppercase tracking-wide px-4 pb-2">
+        <Text className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 pb-2">
           {title}
         </Text>
       )}
-      <View className="bg-secondary mx-4 rounded-xl overflow-hidden shadow-sm">
+      <View className="bg-card mx-4 rounded-2xl overflow-hidden">
         {children}
       </View>
       {footerText && (
-        <Text className="text-xs text-muted-foreground px-4 pt-2 leading-4">
+        <Text className="text-xs text-muted-foreground px-5 pt-2 leading-5">
           {footerText}
         </Text>
       )}
@@ -31,7 +32,7 @@ const SettingsGroup = React.memo(
   )
 );
 
-// iOS-style settings item component
+// iOS-style settings item component with enhanced haptics and press states
 const SettingsItem = React.memo(
   ({
     icon,
@@ -46,6 +47,7 @@ const SettingsItem = React.memo(
     isLast = false,
     isDestructive = false,
     isLink = false,
+    badge,
   }: {
     icon?: React.ReactNode;
     iconColor?: string;
@@ -59,50 +61,89 @@ const SettingsItem = React.memo(
     isLast?: boolean;
     isDestructive?: boolean;
     isLink?: boolean;
+    badge?: string;
   }) => {
     const { colorScheme } = useColorScheme();
+    const [isPressed, setIsPressed] = useState(false);
+
+    const handlePressIn = useCallback(() => {
+      setIsPressed(true);
+      if (Platform.OS === 'ios') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    }, []);
+
+    const handlePressOut = useCallback(() => {
+      setIsPressed(false);
+    }, []);
+
+    const handlePress = useCallback(() => {
+      if (onPress) {
+        if (Platform.OS === 'ios') {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        }
+        onPress();
+      }
+    }, [onPress]);
 
     return (
       <View>
         <TouchableOpacity
-          className="flex-row items-center px-4 py-3 min-h-[44px]"
-          onPress={onPress}
+          className={`flex-row items-center px-4 py-3.5 min-h-[48px] ${isPressed && !isSwitch ? 'bg-muted/50' : ''}`}
+          onPress={handlePress}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
           disabled={isSwitch}
-          activeOpacity={0.6}
+          activeOpacity={1}
         >
           {icon && (
             <View
-              className="w-7 h-7 rounded-md items-center justify-center mr-3"
+              className="w-8 h-8 rounded-lg items-center justify-center mr-3 shadow-sm"
               style={{ backgroundColor: iconBackgroundColor || 'transparent' }}
             >
               {icon}
             </View>
           )}
           <View className="flex-1 flex-row items-center justify-between">
-            <Text
-              className={`text-base ${isDestructive ? 'text-destructive' : isLink ? 'text-blue-500' : 'text-foreground'}`}
-            >
-              {label}
-            </Text>
-            <View className="flex-row items-center">
+            <View className="flex-row items-center gap-2">
+              <Text
+                className={`text-base ${
+                  isDestructive ? 'text-red-500' : isLink ? 'text-blue-500' : 'text-foreground'
+                } ${Platform.OS === 'ios' ? 'font-normal' : ''}`}
+              >
+                {label}
+              </Text>
+              {badge && (
+                <View className="bg-red-500 px-1.5 py-0.5 rounded-full min-w-[18px] items-center justify-center">
+                  <Text className="text-white text-xs font-semibold">{badge}</Text>
+                </View>
+              )}
+            </View>
+            <View className="flex-row items-center gap-2">
               {value && (
-                <Text className="text-muted-foreground text-base mr-2">
+                <Text className="text-muted-foreground text-base" numberOfLines={1}>
                   {value}
                 </Text>
               )}
               {isSwitch ? (
                 <Switch
                   value={switchValue}
-                  onValueChange={onSwitchChange}
-                  trackColor={{ false: '#767577', true: '#34C759' }}
+                  onValueChange={(val) => {
+                    if (Platform.OS === 'ios') {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }
+                    onSwitchChange?.(val);
+                  }}
+                  trackColor={{ false: colorScheme === 'dark' ? '#39393D' : '#E5E5EA', true: '#34C759' }}
                   thumbColor="#ffffff"
+                  ios_backgroundColor={colorScheme === 'dark' ? '#39393D' : '#E5E5EA'}
                 />
               ) : (
                 onPress && (
                   <MaterialCommunityIcons
                     name="chevron-right"
-                    size={20}
-                    color={colorScheme === 'dark' ? '#8E8E93' : '#C7C7CC'}
+                    size={18}
+                    color={colorScheme === 'dark' ? '#636366' : '#C7C7CC'}
                   />
                 )
               )}
@@ -110,7 +151,10 @@ const SettingsItem = React.memo(
           </View>
         </TouchableOpacity>
         {!isLast && (
-          <View className="h-px bg-border ml-12" style={{ marginLeft: icon ? 48 : 16 }} />
+          <View
+            className="h-[0.5px] bg-border/60"
+            style={{ marginLeft: icon ? 56 : 16 }}
+          />
         )}
       </View>
     );
@@ -120,13 +164,12 @@ const SettingsItem = React.memo(
 const Settings = () => {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { signOut } = useClerk(); // Clerk sign out hook
+  const { signOut, user } = useClerk();
   const { colorScheme, setColorScheme } = useColorScheme();
   const [isDark, setIsDark] = useState(colorScheme === 'dark');
   const [remindersEnabled, setRemindersEnabled] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
 
-  // Initialize reminders state from SecureStore
   useEffect(() => {
     const loadRemindersState = async () => {
       try {
@@ -139,7 +182,6 @@ const Settings = () => {
     loadRemindersState();
   }, []);
 
-  // Network state listener
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener(state => {
       setIsOnline(state.isConnected ?? true);
@@ -158,7 +200,11 @@ const Settings = () => {
   const toggleReminders = useCallback(
     async (value: boolean) => {
       if (!isOnline && value) {
-        Alert.alert('Offline', 'Cannot enable reminders while offline. Please connect to the internet.');
+        Alert.alert(
+          'No Internet Connection',
+          'Please connect to the internet to enable reminders.',
+          [{ text: 'OK', style: 'default' }]
+        );
         return;
       }
 
@@ -171,8 +217,12 @@ const Settings = () => {
         }
       } catch (error) {
         console.error('Error toggling reminders:', error);
-        setRemindersEnabled(!value); // Revert on error
-        Alert.alert('Error', 'Failed to update reminders. Please try again.');
+        setRemindersEnabled(!value);
+        Alert.alert(
+          'Unable to Update Reminders',
+          'Please try again later.',
+          [{ text: 'OK', style: 'default' }]
+        );
       }
     },
     [isOnline]
@@ -181,7 +231,7 @@ const Settings = () => {
   const handleShare = useCallback(async () => {
     try {
       await Share.share({
-        message: 'Check out Unhooked! The app that helps you disconnect and live better.',
+        message: 'Check out Unhooked – an app that helps you stay focused on your recovery journey. https://unhooked.xyz',
         url: 'https://unhooked.xyz',
       });
     } catch (error) {
@@ -191,9 +241,13 @@ const Settings = () => {
 
   const openLink = useCallback(async (url: string) => {
     try {
-      await Linking.openURL(url);
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      }
     } catch (error) {
       console.error('Error opening link:', error);
+      Alert.alert('Unable to Open Link', 'Please try again later.');
     }
   }, []);
 
@@ -207,45 +261,62 @@ const Settings = () => {
           text: 'Sign Out',
           onPress: async () => {
             try {
-              await signOut(); // Clerk sign out
-              router.replace('/(auth)/sign-up'); // Redirect to sign-up
+              await signOut();
+              router.replace('/(auth)/sign-up');
             } catch (error) {
               console.error('Error signing out:', error);
-              Alert.alert('Error', 'Failed to sign out. Please try again.');
+              Alert.alert('Sign Out Failed', 'Please try again.');
             }
           },
           style: 'destructive',
         },
-      ]
+      ],
+      { cancelable: true }
     );
   }, [signOut, router]);
 
   return (
     <View className="flex-1 bg-background">
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-        <View className="px-4 py-6 bg-background">
-          <Text className="text-3xl font-bold mb-1 text-foreground">Settings</Text>
-          <Text className="text-muted-foreground text-sm">
-            Manage your preferences and account
-          </Text>
+        {/* Header */}
+        <View className="px-5 pb-4 pt-2 bg-background">
+          <Text className="text-4xl font-bold text-foreground tracking-tight">Settings</Text>
         </View>
 
         <ScrollView
           className="flex-1"
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 24, paddingTop: 8 }}
         >
+          {/* Profile Card */}
+          {user && (
+            <View className="mx-4 mb-6 bg-card rounded-2xl p-4 flex-row items-center">
+              <View className="w-16 h-16 rounded-full bg-blue-500 items-center justify-center mr-4">
+                <Text className="text-white text-2xl font-semibold">
+                  {user.firstName?.[0] || user.emailAddresses[0]?.emailAddress[0]?.toUpperCase() || '?'}
+                </Text>
+              </View>
+              <View className="flex-1">
+                <Text className="text-lg font-semibold text-foreground">
+                  {user.firstName} {user.lastName}
+                </Text>
+                <Text className="text-sm text-muted-foreground" numberOfLines={1}>
+                  {user.emailAddresses[0]?.emailAddress}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Account Section */}
           <SettingsGroup title="Account">
             <SettingsItem
-              icon={<MaterialCommunityIcons name="account-circle-outline" size={20} color="white" />}
+              icon={<MaterialCommunityIcons name="account-circle-outline" size={22} color="white" />}
               iconBackgroundColor="#007AFF"
-              label="Edit Profile"
-              onPress={() => {
-                router.push('/account')
-              }}
+              label="Manage Account"
+              onPress={() => router.push('/account')}
             />
             <SettingsItem
-              icon={<MaterialCommunityIcons name="logout" size={20} color="white" />}
+              icon={<MaterialCommunityIcons name="logout" size={22} color="white" />}
               iconBackgroundColor="#FF3B30"
               label="Sign Out"
               onPress={handleSignOut}
@@ -254,19 +325,20 @@ const Settings = () => {
             />
           </SettingsGroup>
 
+          {/* Appearance Section */}
           <SettingsGroup
-            title="Preferences"
-            footerText="Dark mode reduces eye strain in low-light conditions and may help save battery life on OLED displays."
+            title="Appearance"
+            footerText="Dark mode reduces eye strain in low-light environments and may help conserve battery life on OLED displays."
           >
             <SettingsItem
               icon={
                 <MaterialCommunityIcons
-                  name={isDark ? 'weather-night' : 'weather-sunny'}
-                  size={20}
+                  name={isDark ? 'moon-waning-crescent' : 'white-balance-sunny'}
+                  size={22}
                   color="white"
                 />
               }
-              iconBackgroundColor={isDark ? '#5856D6' : '#FF9500'}
+              iconBackgroundColor={isDark ? '#5E5CE6' : '#FF9F0A'}
               label="Dark Mode"
               isSwitch
               switchValue={isDark}
@@ -275,14 +347,15 @@ const Settings = () => {
             />
           </SettingsGroup>
 
+          {/* Notifications Section */}
           <SettingsGroup
             title="Notifications"
-            footerText="Enable reminders to receive daily check-ins to support your recovery journey."
+            footerText="Receive gentle daily reminders to check in with yourself and track your progress on your recovery journey."
           >
             <SettingsItem
-              icon={<Feather name="bell" size={20} color="white" />}
-              iconBackgroundColor="#34C759"
-              label="Daily Reminders"
+              icon={<Feather name="bell" size={22} color="white" />}
+              iconBackgroundColor="#30D158"
+              label="Daily Check-In Reminders"
               isSwitch
               switchValue={remindersEnabled}
               onSwitchChange={toggleReminders}
@@ -290,67 +363,82 @@ const Settings = () => {
             />
           </SettingsGroup>
 
-          <SettingsGroup title="Help & Support">
+          {/* Support Section */}
+          <SettingsGroup title="Support">
             <SettingsItem
-              icon={<Feather name="help-circle" size={20} color="white" />}
-              iconBackgroundColor="#5856D6"
-              label="FAQ"
-              onPress={() => openLink('https://unhooked.xyz')}
-              isLink
+              icon={<Feather name="help-circle" size={22} color="white" />}
+              iconBackgroundColor="#5E5CE6"
+              label="Frequently Asked Questions"
+              onPress={() => openLink('https://unhooked.xyz/faq')}
             />
             <SettingsItem
-              icon={<MaterialCommunityIcons name="email-outline" size={20} color="white" />}
-              iconBackgroundColor="#FF9500"
+              icon={<MaterialCommunityIcons name="email-outline" size={22} color="white" />}
+              iconBackgroundColor="#FF9F0A"
               label="Contact Support"
               onPress={() => openLink('mailto:support@unhooked.xyz')}
-              isLink
             />
             <SettingsItem
-              icon={<Feather name="book" size={20} color="white" />}
+              icon={<Feather name="book-open" size={22} color="white" />}
               iconBackgroundColor="#32D74B"
               label="User Guide"
-              onPress={() => openLink('https://unhooked.xyz/user-guide')}
+              onPress={() => openLink('https://unhooked.xyz/guide')}
               isLast
-              isLink
             />
           </SettingsGroup>
 
+          {/* Resources Section */}
+          <SettingsGroup title="Resources">
+            <SettingsItem
+              icon={<MaterialCommunityIcons name="heart-outline" size={22} color="white" />}
+              iconBackgroundColor="#FF375F"
+              label="Crisis Resources"
+              onPress={() => openLink('https://unhooked.xyz/crisis')}
+            />
+            <SettingsItem
+              icon={<MaterialCommunityIcons name="account-group" size={22} color="white" />}
+              iconBackgroundColor="#64D2FF"
+              label="Community Guidelines"
+              onPress={() => openLink('https://unhooked.xyz/community')}
+              isLast
+            />
+          </SettingsGroup>
+
+          {/* About Section */}
           <SettingsGroup title="About">
             <SettingsItem
-              icon={<MaterialCommunityIcons name="share-variant" size={20} color="white" />}
+              icon={<MaterialCommunityIcons name="share-variant-outline" size={22} color="white" />}
               iconBackgroundColor="#007AFF"
               label="Share Unhooked"
               onPress={handleShare}
             />
             <SettingsItem
-              icon={<MaterialCommunityIcons name="shield-check" size={20} color="white" />}
-              iconBackgroundColor="#34C759"
+              icon={<MaterialCommunityIcons name="shield-check-outline" size={22} color="white" />}
+              iconBackgroundColor="#30D158"
               label="Privacy Policy"
               onPress={() => openLink('https://unhooked.xyz/privacy')}
-              isLink
             />
             <SettingsItem
-              icon={<MaterialCommunityIcons name="file-document" size={20} color="white" />}
+              icon={<MaterialCommunityIcons name="file-document-outline" size={22} color="white" />}
               iconBackgroundColor="#8E8E93"
               label="Terms of Service"
               onPress={() => openLink('https://unhooked.xyz/terms')}
-              isLink
             />
             <SettingsItem
-              icon={<MaterialCommunityIcons name="information" size={20} color="white" />}
-              iconBackgroundColor="#5856D6"
-              label="App Version"
+              icon={<MaterialCommunityIcons name="information-outline" size={22} color="white" />}
+              iconBackgroundColor="#5E5CE6"
+              label="Version"
               value="1.0.0"
               isLast
             />
           </SettingsGroup>
 
-          <View className="items-center px-4 mb-8">
-            <Text className="text-xs text-muted-foreground text-center">
-              © 2025 Teens Aloud Foundation
+          {/* Footer */}
+          <View className="items-center px-4 pt-4 pb-6">
+            <Text className="text-xs text-muted-foreground text-center leading-5">
+              Made with care by Teens Aloud Foundation
             </Text>
             <Text className="text-xs text-muted-foreground text-center mt-1">
-              All rights reserved
+              © 2025 All rights reserved
             </Text>
           </View>
         </ScrollView>

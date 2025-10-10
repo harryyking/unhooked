@@ -22,25 +22,22 @@ const APP_SCHEME = 'unhooked';
 
 type SocialConnectionStrategy = Extract<
   StartSSOFlowParams['strategy'],
-  'oauth_google' | 'oauth_github' | 'oauth_apple'
+  'oauth_google'| 'oauth_apple'
 >;
 
 const SOCIAL_CONNECTION_STRATEGIES: {
   type: SocialConnectionStrategy;
   source: ImageSourcePropType;
   useTint?: boolean;
-  label: string;
 }[] = [
   {
     type: 'oauth_apple',
     source: { uri: 'https://img.clerk.com/static/apple.png?width=160' },
-    label: 'Sign in with Apple',
     useTint: true,
   },
   {
     type: 'oauth_google',
     source: { uri: 'https://img.clerk.com/static/google.png?width=160' },
-    label: 'Sign in with Google',
     useTint: false,
   },
 ];export function SocialConnections() {
@@ -71,15 +68,7 @@ const SOCIAL_CONNECTION_STRATEGIES: {
     }
 
     // Handle pending state (e.g., if unexpected sign-up fields or MFA—shouldn't happen if config is one-click)
-    if (signIn || signUp) {
-      const nextStep = signIn?.status || signUp?.status;
-      console.warn(`Unexpected pending state: ${nextStep}. Check Clerk Dashboard for mandatory fields or MFA.`);
-      Alert.alert(
-        'Additional Steps Needed',
-        'Please complete the required information to continue.',
-        // Here, you could navigate to a custom continue screen to handle missingFields
-        // e.g., router.push('/continue-sign-up');
-      );
+    if (signIn || signUp) {     
       return;
     }
 
@@ -88,8 +77,11 @@ const SOCIAL_CONNECTION_STRATEGIES: {
 
   } catch (err) {
     const errorDetails = err instanceof Error ? err.message : 'An unknown error occurred.';
-    console.error('SSO Error:', JSON.stringify(err, null, 2));
-    Alert.alert('Login Failed', `Could not complete login: ${errorDetails}`);
+    // Log errors internally (e.g., to Sentry) instead of console in production
+    if (__DEV__) {
+      console.error('SSO Error:', errorDetails);
+    }
+    Alert.alert('Login Failed', 'Could not complete login. Please try again.')
   }
 };  }  return (
     <View className="gap-2 sm:flex-row sm:gap-3">
@@ -110,7 +102,6 @@ const SOCIAL_CONNECTION_STRATEGIES: {
               })}
               source={strategy.source}
             />
-            <Text>{strategy.label}</Text>
           </Button>
         ) : null
       ))}
