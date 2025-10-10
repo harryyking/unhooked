@@ -41,12 +41,6 @@ clerk.route({
           console.log(`[Clerk Webhook] Processed ${evt.type}: ${id} (${email})`);
           break;
         }
-        case "user.deleted": {
-          const { id } = evt.data;
-          await ctx.runMutation(api.user.deleteUser, { clerkId: id! });
-          console.log(`[Clerk Webhook] Processed user.deleted: ${id}`);
-          break;
-        }
         default: {
           console.log(`[Clerk Webhook] Ignored event: ${evt.type}`);
         }
