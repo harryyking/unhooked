@@ -57,7 +57,7 @@ const DEFAULT_AUTH_SCREEN_OPTIONS = {
 // ADDED: Simple NoConnection component (customize styles as needed)
 function NoConnection({ onRetry }: { onRetry: () => void }) {
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000', paddingHorizontal: 20 }}>
+    <View className='bg-background' style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 }}>
       <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold', marginBottom: 8 }}>No Internet Connection</Text>
       <Text style={{ color: 'white', fontSize: 16, textAlign: 'center', marginBottom: 16 }}>
         Please check your Wi-Fi or mobile data and try again.
@@ -111,7 +111,7 @@ function Routes() {
   // ADDED: Offline check after auth load (show loading if status undetermined)
   if (!isLoaded || isOnline === null) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center'}} className='bg-background'>
         <ActivityIndicator size="large" color="#ffffff" />
         <Text style={{ color: 'white', fontSize: 16, marginTop: 16 }}>Loading authentication...</Text>
       </View>
