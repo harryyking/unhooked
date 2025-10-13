@@ -101,7 +101,7 @@ export function SocialConnections() {
   }
 
   return (
-    <View className="gap-2 sm:flex-row sm:gap-3">
+    <View className="gap-2">
       {SOCIAL_CONNECTION_STRATEGIES.map((strategy) => (
         // Conditionally render Apple only on iOS for better UX (optional)
         (strategy.type !== 'oauth_apple' || Platform.OS === 'ios') ? (
