@@ -9,7 +9,7 @@ import NetInfo from '@react-native-community/netinfo';
 import * as SecureStore from 'expo-secure-store';
 import * as Haptics from 'expo-haptics';
 import { enableReminders, cancelReminders } from '@/lib/reminders';
-import { useClerk } from '@clerk/clerk-expo';
+import { useClerk, useUser } from '@clerk/clerk-expo';
 
 // iOS-style settings group component
 const SettingsGroup = React.memo(
@@ -164,7 +164,8 @@ const SettingsItem = React.memo(
 const Settings = () => {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { signOut, user } = useClerk();
+  const { user: clerkUser, loaded: userLoaded, signOut } = useClerk();  // Keep for signOut
+  const { user, isLoaded } = useUser();  // New: Reactive user
   const { colorScheme, setColorScheme } = useColorScheme();
   const [isDark, setIsDark] = useState(colorScheme === 'dark');
   const [remindersEnabled, setRemindersEnabled] = useState(false);

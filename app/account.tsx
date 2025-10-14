@@ -52,30 +52,38 @@ const UserAccount = () => {
       Alert.alert('Offline', 'Cannot save profile changes while offline. Please connect to the internet.');
       return;
     }
-
+  
     if (!firstName.trim() || !lastName.trim()) {
       Alert.alert('Validation Error', 'Please fill in all required fields.');
       return;
     }
-
+  
     if (!user) {
       Alert.alert('Error', 'User data not available. Please try again.');
       return;
     }
-
+  
     try {
-      // Update profile with Clerk
-      await user.update({
+      // Update ONLY name (remove email part)
+      const updatedUser = await user.update({
         firstName,
         lastName,
-        primaryEmailAddressId: email,
       });
+      
+      // Optional: Log for debugging
+      console.log('Updated user:', updatedUser.firstName, updatedUser.lastName);
+      
       Alert.alert('Success', 'Profile updated successfully!');
+      
+      // Refresh local state with updated data (ensures immediate UI sync)
+      setFirstName(updatedUser.firstName || '');
+      setLastName(updatedUser.lastName || '');
     } catch (error) {
       console.error('Error updating profile:', error);
-      Alert.alert('Error', 'Failed to update profile. Please try again.');
+      Alert.alert('Error', `Failed to update profile: ${error || 'Please try again.'}`);
     }
-  }, [isOnline, firstName, lastName, email, user]);
+  }, [isOnline, firstName, lastName, user]);
+
 
   const handleChangePassword = useCallback(async () => {
     if (!isOnline) {

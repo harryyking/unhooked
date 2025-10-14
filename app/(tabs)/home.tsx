@@ -4,8 +4,7 @@ import HomeTabs from '@/components/hometabs';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
-import { cancelReminders, enableReminders, requestNotificationPermissions } from '@/lib/reminders';
-
+import { cancelReminders, enableReminders, requestNotificationPermissions, scheduleDailyReminders } from '@/lib/reminders';
 
 const HomeScreen = () => {
   useEffect(() => {
@@ -67,7 +66,3 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
-
-function scheduleDailyReminders() {
-  throw new Error('Function not implemented.');
-}

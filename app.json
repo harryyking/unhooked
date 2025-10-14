@@ -18,11 +18,12 @@
     ],
     "ios": {
       "supportsTablet": true,
-     "usesAppleSignIn": true ,
+      "usesAppleSignIn": true,
       "bundleIdentifier": "com.harryking.unhooked",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
+          "audio",
           "audio"
         ]
       }
@@ -33,7 +34,13 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.harryking.unhooked"
+      "package": "com.harryking.unhooked",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -58,11 +65,17 @@
     "experiments": {
       "typedRoutes": true
     },
-    "extra": { 
+    "extra": {
       "router": {},
       "eas": {
         "projectId": "bd0f805e-e36c-479c-b76c-041d24e8a602"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/bd0f805e-e36c-479c-b76c-041d24e8a602"
     }
   }
 }

@@ -66,7 +66,7 @@ const REMINDER_TIMES = [
   ];
   
   // Helper: Schedule reminders
-  async function scheduleDailyReminders() {
+ export async function scheduleDailyReminders() {
     await Notifications.cancelAllScheduledNotificationsAsync();
   
     const scheduledIds = [];
