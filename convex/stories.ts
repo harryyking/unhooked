@@ -20,7 +20,7 @@ export const createStory = mutation({
 
     const user = await ctx.db
     .query("users")
-    .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.tokenIdentifier))
+    .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
     .unique();
 
   if (!user) {

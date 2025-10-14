@@ -4,10 +4,7 @@ import { Text } from '@/components/ui/text';
 import { Link, Stack } from 'expo-router';
 import { MoonStarIcon, XIcon, SunIcon, ArrowRightIcon, CheckCircleIcon } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
-import * as React from 'react';
 import { Image, type ImageStyle, View, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 
 const SCREEN_OPTIONS = {
   header: () => (
@@ -36,7 +33,7 @@ export default function Screen() {
             {/* Title */}
             <Text 
               variant="h1" 
-              className="mb-4 text-left font-semibold text-6xl font-mono"
+              className="mb-4 text-left text-6xl font-bold text-foreground tracking-tight"
             >
               Ready to Break Free?
             </Text>

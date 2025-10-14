@@ -484,7 +484,7 @@ const StoryCard = React.memo(({ story, onUpvote, formatTime }: StoryCardProps) =
                     </CardHeader>
                     
                     <CardContent className="py-0">
-                        <Text className='text-sm text-muted-foreground leading-5' numberOfLines={3}>
+                        <Text className='text-sm text-muted-foreground leading-5'>
                             {story.content}
                         </Text>
                     </CardContent>
