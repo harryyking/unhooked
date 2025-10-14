@@ -2,7 +2,8 @@
   "expo": {
     "name": "Unhooked",
     "slug": "unhooked",
-    "version": "1.0.0",
+    "version": "1.0.1",
+    "runtimeVersion": "1.0.1", 
     "orientation": "portrait",
     "icon": "./assets/images/unhooked-ios-icon-3.png",
     "scheme": "unhooked",
@@ -23,7 +24,6 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
-          "audio",
           "audio"
         ]
       }
@@ -36,8 +36,6 @@
       },
       "package": "com.harryking.unhooked",
       "permissions": [
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
@@ -70,9 +68,6 @@
       "eas": {
         "projectId": "bd0f805e-e36c-479c-b76c-041d24e8a602"
       }
-    },
-    "runtimeVersion": {
-      "policy": "appVersion"
     },
     "updates": {
       "url": "https://u.expo.dev/bd0f805e-e36c-479c-b76c-041d24e8a602"
