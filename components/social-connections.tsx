@@ -72,7 +72,7 @@ export function SocialConnections() {
         authInProgress.current = true;
        
         const redirectUrl = AuthSession.makeRedirectUri(Platform.select({
-          native: { scheme: APP_SCHEME, path: 'sso-callback' },
+          native: { scheme: APP_SCHEME, path: 'auth' },
           web: {},
         }));
        
