@@ -134,7 +134,7 @@ export default function ResultsScreen() {
         <Button 
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            router.push('/(auth)/paywall');
+            router.push('/(paywall)/index');
           }}
           className="h-16 rounded-2xl bg-primary flex-row items-center justify-center gap-3 shadow-xl shadow-primary/20"
         >
