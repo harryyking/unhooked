@@ -1,108 +1,143 @@
-import { Platform } from 'react-native';
+import React, { useEffect } from 'react';
+import { Platform, View } from 'react-native';
 import { Tabs } from 'expo-router';
-import { useTheme } from '@react-navigation/native';
-import { HomeIcon, MessageCircle, LibraryBig, Settings } from 'lucide-react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-} from 'react-native-reanimated'; // Import from Reanimated
-import { useEffect } from 'react';
+import { Home, Users, Settings, ShieldCheck } from 'lucide-react-native';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withSpring, 
+  interpolate,
+  Extrapolation
+} from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+import { BlurView } from 'expo-blur';
 
-// Reusable animated icon component with Reanimated
-const AnimatedTabBarIcon = ({ IconComponent, focused, color }: any) => {
-  const scale = useSharedValue(1); // Shared value for scale
+/**
+ * 1. The Animated Icon Component
+ * Scales up slightly when active and bounces back.
+ */
+const AnimatedTabBarIcon = ({ 
+  IconComponent, 
+  focused, 
+  color 
+}: { 
+  IconComponent: any; 
+  focused: boolean; 
+  color: string; 
+}) => {
+  const scale = useSharedValue(0);
 
   useEffect(() => {
-    scale.value = withSpring(focused ? 1.2 : 1, {
-      damping: 10, // Controls bounce (lower = more bouncy)
-      stiffness: 100, // Spring tension
+    scale.value = withSpring(focused ? 1 : 0, {
+      duration: 350,
+      dampingRatio: 0.5, // Controls the "bounciness"
     });
-  }, [focused, scale]);
+  }, [focused]);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
+  const animatedStyle = useAnimatedStyle(() => {
+    // Interpolate 0 -> 1 to Scale 1 -> 1.2
+    const iconScale = interpolate(
+      scale.value,
+      [0, 1],
+      [1, 1.2],
+      Extrapolation.CLAMP
+    );
+
+    return {
+      transform: [{ scale: iconScale }],
+    };
+  });
 
   return (
-    <Animated.View
-      className="items-center justify-center" // NativeWind classes for layout tweaks
-      style={animatedStyle}
-    >
-      <IconComponent
-        fill={focused ? color : 'none'}
-        stroke={focused ? 'none' : color}
-        strokeWidth={focused ? 0 : 2}
-        size={24}
-      />
+    <Animated.View style={animatedStyle}>
+      <IconComponent size={24} color={color} strokeWidth={focused ? 2.5 : 2} />
     </Animated.View>
   );
 };
 
-const TabsLayout = () => {
-  const { colors} = useTheme();
-
+export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: colors.text,
-        tabBarInactiveTintColor: '#888888',
+        tabBarActiveTintColor: '#4ADE80', // Your brand Green
+        tabBarInactiveTintColor: '#64748b', // Slate-500
+        headerShown: false,
+        
+        // 2. The Native Tab Bar Style
         tabBarStyle: {
-          backgroundColor: colors.background,
-          height: Platform.OS === 'ios' ? 90 : 60,
-          paddingBottom: Platform.OS === 'ios' ? 25 : 0,
-          borderTopWidth: 1,
-          borderColor: colors.border,
-          ...Platform.select({
-            android: { elevation: 2 },
-            ios: { shadowColor: '#000', shadowOpacity: 0.1, shadowOffset: { width: 0, height: -2 }, shadowRadius: 4,  },
-          }),
-          position: 'absolute', // Optional: makes tab bar float
+          backgroundColor: Platform.OS === 'ios' ? 'transparent' : '#0f172a', // Transparent on iOS for Blur
+          borderTopWidth: 0, // Remove ugly line
+          elevation: 0, // Remove Android shadow
+          height: Platform.OS === 'ios' ? 85 : 65,
+          paddingTop: 10,
+          position: 'absolute',
           bottom: 0,
           left: 0,
           right: 0,
         },
 
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '400',
-          marginBottom: 4,
-        },
-        headerShown: false,
-      }}>
+        // 3. The "Glass" Background for iOS
+        tabBarBackground: () => (
+          Platform.OS === 'ios' ? (
+            <BlurView 
+              tint="dark" 
+              intensity={80} 
+              style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} 
+            />
+          ) : undefined
+        ),
+      }}
+    >
+      {/* Tab 1: Home (The Tree) */}
       <Tabs.Screen
         name="home"
         options={{
           title: 'Home',
           tabBarIcon: ({ focused, color }) => (
-            <AnimatedTabBarIcon IconComponent={HomeIcon} focused={focused} color={color} />
+            <AnimatedTabBarIcon IconComponent={Home} focused={focused} color={color} />
           ),
-          tabBarAccessibilityLabel: 'Home',
+          // Trigger Haptic feedback when pressed
+          tabBarButton: (props) => (
+            <View 
+              onTouchEnd={() => Haptics.selectionAsync()} 
+              style={{ flex: 1 }}
+            >
+              {props.children}
+            </View>
+          ),
         }}
       />
 
+      {/* Tab 2: Community (Allies) */}
       <Tabs.Screen
-        name="community"
+        name="allies" // Note: Rename your file from 'community' to 'allies' to match your data model
         options={{
-          title: 'Community',
+          title: 'Allies',
           tabBarIcon: ({ focused, color }) => (
-            <AnimatedTabBarIcon IconComponent={MessageCircle} focused={focused} color={color} />
+            <AnimatedTabBarIcon IconComponent={Users} focused={focused} color={color} />
           ),
-          tabBarAccessibilityLabel: 'Community',
+          tabBarButton: (props) => (
+            <View onTouchEnd={() => Haptics.selectionAsync()} style={{ flex: 1 }}>{props.children}</View>
+          ),
         }}
       />
 
+      {/* Tab 3: Check-In (New Feature) */}
+      {/* I recommend adding this as the center tab later for the "HALT" check-in */}
       <Tabs.Screen
-        name="journal"
+        name="check-in"
         options={{
-          title: 'Journal',
+          title: 'Check In',
           tabBarIcon: ({ focused, color }) => (
-            <AnimatedTabBarIcon IconComponent={LibraryBig} focused={focused} color={color} />
+            <AnimatedTabBarIcon IconComponent={ShieldCheck} focused={focused} color={color} />
           ),
-          tabBarAccessibilityLabel: 'Resources',
+          tabBarButton: (props) => (
+            <View onTouchEnd={() => Haptics.selectionAsync()} style={{ flex: 1 }}>{props.children}</View>
+          ),
         }}
       />
 
+      {/* Tab 4: Settings */}
       <Tabs.Screen
         name="settings"
         options={{
@@ -110,11 +145,11 @@ const TabsLayout = () => {
           tabBarIcon: ({ focused, color }) => (
             <AnimatedTabBarIcon IconComponent={Settings} focused={focused} color={color} />
           ),
-          tabBarAccessibilityLabel: 'Settings',
+          tabBarButton: (props) => (
+            <View onTouchEnd={() => Haptics.selectionAsync()} style={{ flex: 1 }}>{props.children}</View>
+          ),
         }}
       />
     </Tabs>
   );
-};
-
-export default TabsLayout;
+}

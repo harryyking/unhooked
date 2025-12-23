@@ -1,180 +1,90 @@
-import '@/global.css';
+import { useEffect, useState } from 'react';
+import { Slot, useRouter, useSegments } from 'expo-router';
+import { Session } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
+import { View, ActivityIndicator } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
+import Toast from 'react-native-toast-message'; // 1. Import Toast
+import { 
+  InstrumentSans_400Regular, 
+  InstrumentSans_700Bold, 
+  InstrumentSans_600SemiBold, 
+  useFonts 
+} from '@expo-google-fonts/instrument-sans';
 
-import { NAV_THEME } from '@/lib/theme';
-import { ThemeProvider } from '@react-navigation/native';
-import { PortalHost } from '@rn-primitives/portal';
-import { Stack, ErrorBoundary } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
-import { tokenCache } from '@clerk/clerk-expo/token-cache';
-import { useColorScheme } from 'nativewind';
-import Constants from 'expo-constants';
-import * as React from 'react';
-import { ErrorUtils } from 'react-native';
-import { Text, View, ActivityIndicator, Button } from 'react-native'; // ADDED: Button for retry
-import { ConvexReactClient } from 'convex/react';
-import { ClerkProvider, useAuth, ClerkLoaded } from '@clerk/clerk-expo';
-import { ConvexProviderWithClerk } from 'convex/react-clerk';
-import NetInfo, { useNetInfo } from '@react-native-community/netinfo'; // ADDED: Import NetInfo
+export default function RootLayout() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [initialized, setInitialized] = useState(false);
+  const segments = useSegments();
+  const router = useRouter();
 
-export {
-  ErrorBoundary,
-} from 'expo-router';
+  const [fontsLoaded] = useFonts({
+    InstrumentSans_400Regular,
+    InstrumentSans_600SemiBold,
+    InstrumentSans_700Bold
+  });
 
-
-// Access env vars correctly for all environments
-const convexUrl = process.env.EXPO_PUBLIC_CONVEX_URL
-const clerkKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY 
-
-// Strict validation with early exit
-if (!convexUrl || !clerkKey) {
-  console.error('Missing critical env vars:', { convexUrl, clerkKey: clerkKey ? clerkKey.substring(0, 10) + '...' : null });
-}
-
-// Convex client initialization
-const convex = convexUrl 
-  ? new ConvexReactClient(convexUrl, { unsavedChangesWarning: false })
-  : null;
-
-const SIGN_IN_SCREEN_OPTIONS = {
-  headerShown: false,
-  title: 'Sign in',
-} as const;
-
-const SIGN_UP_SCREEN_OPTIONS = {
-  presentation: 'modal',
-  title: '',
-  headerTransparent: true,
-  gestureEnabled: false,
-} as const;
-
-const DEFAULT_AUTH_SCREEN_OPTIONS = {
-  title: '',
-  headerShadowVisible: false,
-  headerTransparent: true,
-} as const;
-
-// ADDED: Simple NoConnection component (customize styles as needed)
-function NoConnection({ onRetry }: { onRetry: () => void }) {
-  return (
-    <View className='bg-background' style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 }}>
-      <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold', marginBottom: 8 }}>No Internet Connection</Text>
-      <Text style={{ color: 'white', fontSize: 16, textAlign: 'center', marginBottom: 16 }}>
-        Please check your Wi-Fi or mobile data and try again.
-      </Text>
-      <Button title="Retry" onPress={onRetry} color="#007AFF" />
-    </View>
-  );
-}
-
-function Routes() {
-  const { isSignedIn, isLoaded } = useAuth();
-  const netInfo = useNetInfo(); // ADDED: Hook for net info
-  const [isOnline, setIsOnline] = React.useState<boolean | null>(null); // ADDED: State for online status
-
-  // ADDED: Listen for net changes (unsubscribe on unmount to avoid leaks)
-  React.useEffect(() => {
+  // --- Network Monitoring ---
+  useEffect(() => {
     const unsubscribe = NetInfo.addEventListener(state => {
-      // Use isInternetReachable for true internet check (falls back to isConnected if null)
-      setIsOnline(state.isInternetReachable ?? state.isConnected ?? false);
-    });
-
-    // Initial fetch to set state immediately
-    NetInfo.fetch().then(state => {
-      setIsOnline(state.isInternetReachable ?? state.isConnected ?? false);
+      if (state.isConnected === false) {
+        Toast.show({
+          type: 'error',
+          text1: 'Offline Mode',
+          text2: 'Some features like SOS and AI require internet.',
+          autoHide: false, // Keep it visible while offline
+          position: 'top',
+        });
+      } else if (state.isConnected === true) {
+        // Hide the offline toast and show a quick success one
+        Toast.hide();
+        Toast.show({
+          type: 'success',
+          text1: 'Back Online',
+          text2: 'Connection restored.',
+          visibilityTime: 3000,
+        });
+      }
     });
 
     return () => unsubscribe();
   }, []);
 
-  React.useEffect(() => {
-    let timeout: ReturnType<typeof setTimeout> | null = null; 
-  
-    if (isLoaded) {
-      SplashScreen.hideAsync().catch((err) => console.warn('Splash hide error:', err));
-    } else {
-      // Increase to at least 4000ms (4 seconds)
-      timeout = setTimeout(() => {
-        console.warn('Auth loading timeout—hiding splash manually');
-        SplashScreen.hideAsync().catch((err) => console.warn('Splash hide error:', err));
-      }, 4000); // <--- Increased timeout
-  
-      // NOTE: If isLoaded never becomes true (e.g., Clerk API call fails due to the environment variable being wrong), 
-      // this timeout will hide the splash and show your loading screen after 4 seconds.
+  // --- Auth Logic ---
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setInitialized(true);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => authListener.subscription.unsubscribe();
+  }, []);
+
+  // --- Navigation Guard ---
+  useEffect(() => {
+    if (!initialized || !fontsLoaded) return;
+    const inAuthGroup = segments[0] === '(auth)';
+    
+    if (session && inAuthGroup) {
+      router.replace('/(tabs)/home');
+    } else if (!session && !inAuthGroup) {
+      router.replace('/(auth)/');
     }
-  
-    return () => {
-      if (timeout) clearTimeout(timeout);
-    };
-  }, [isLoaded]);
+  }, [session, initialized, segments, fontsLoaded]);
 
-  // ADDED: Offline check after auth load (show loading if status undetermined)
-  if (!isLoaded || isOnline === null) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center'}} className='bg-background'>
-        <ActivityIndicator size="large" color="#ffffff" />
-        <Text style={{ color: 'white', fontSize: 16, marginTop: 16 }}>Loading authentication...</Text>
-      </View>
-    );
-  }
-
-  // ADDED: Render NoConnection if offline, with retry to re-fetch net info
-  if (!isOnline) {
-    return <NoConnection onRetry={() => NetInfo.fetch().then(state => setIsOnline(state.isInternetReachable ?? state.isConnected ?? false))} />;
+  if (!fontsLoaded || !initialized) {
+    return <View style={{flex:1, justifyContent:'center', backgroundColor: '#0f172a'}}><ActivityIndicator color="#4ADE80" /></View>;
   }
 
   return (
-    <Stack>
-     <Stack.Protected guard={!isSignedIn}>
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen name="quizzes" options={{ headerShown: false }} />
-          <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-          <Stack.Screen name="(auth)/sign-in" options={SIGN_IN_SCREEN_OPTIONS} />
-          <Stack.Screen name="(auth)/sign-up" options={SIGN_UP_SCREEN_OPTIONS} />
-          <Stack.Screen name="(auth)/reset-password" options={DEFAULT_AUTH_SCREEN_OPTIONS} />
-          <Stack.Screen name="(auth)/forgot-password" options={DEFAULT_AUTH_SCREEN_OPTIONS} />
-     </Stack.Protected>
-        
-
-        <Stack.Protected guard={isSignedIn}>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="account" options={{ headerShown: false }} />
-          <Stack.Screen name="prayer-session" options={{ headerShown: false }} />
-        </Stack.Protected>
-    </Stack>
-  );
-}
-
-SplashScreen.preventAutoHideAsync();
-
-export default function RootLayout() {
-  const { colorScheme } = useColorScheme();
-
-  // Early critical config check with user-friendly error screen
-  if (!convexUrl || !clerkKey || !convex) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
-        <Text style={{ color: 'white', fontSize: 16, textAlign: 'center', paddingHorizontal: 20 }}>
-          App configuration error. Please check your setup and try again.
-        </Text>
-      </View>
-    );
-  }
-
-  // Log for debugging (keep in prod for diagnostics, but prefix for easy filtering)
-  console.log('Clerk init with key prefix:', clerkKey.substring(0, 10) + '...');
-
-  return (
-    <ClerkProvider tokenCache={tokenCache} publishableKey={clerkKey}>
-      <ClerkLoaded>
-        <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-          <ThemeProvider value={NAV_THEME[colorScheme ?? 'light']}>
-            <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-            <Routes />
-            <PortalHost />
-          </ThemeProvider>
-        </ConvexProviderWithClerk>
-      </ClerkLoaded>
-    </ClerkProvider>
+    <>
+      <Slot />
+      {/* 2. Place the Toast component at the very bottom of your return */}
+      <Toast /> 
+    </>
   );
 }
