@@ -4,13 +4,29 @@ import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { View, ActivityIndicator } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
-import Toast from 'react-native-toast-message'; // 1. Import Toast
-import { 
-  InstrumentSans_400Regular, 
-  InstrumentSans_700Bold, 
-  InstrumentSans_600SemiBold, 
-  useFonts 
-} from '@expo-google-fonts/instrument-sans';
+import Toast from 'react-native-toast-message';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'; // 1. Import TanStack Query
+import {
+  PlusJakartaSans_300Light,
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+  useFonts
+} from '@expo-google-fonts/plus-jakarta-sans'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'; // 1. Import Gesture Handler
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet'; // 2. Import Bottom Sheet Provider
+import { KeyboardProvider } from 'react-native-keyboard-controller';
+
+// 2. Initialize the QueryClient outside the component to prevent re-renders
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 2,
+      staleTime: 1000 * 60 * 5, // 5 minutes
+    },
+  },
+});
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
@@ -19,9 +35,11 @@ export default function RootLayout() {
   const router = useRouter();
 
   const [fontsLoaded] = useFonts({
-    InstrumentSans_400Regular,
-    InstrumentSans_600SemiBold,
-    InstrumentSans_700Bold
+    PlusJakartaSans_300Light,
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_500Medium,
+    PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold
   });
 
   // --- Network Monitoring ---
@@ -32,21 +50,14 @@ export default function RootLayout() {
           type: 'error',
           text1: 'Offline Mode',
           text2: 'Some features like SOS and AI require internet.',
-          autoHide: false, // Keep it visible while offline
+          autoHide: true,
+          visibilityTime: 5000,
           position: 'top',
         });
       } else if (state.isConnected === true) {
-        // Hide the offline toast and show a quick success one
         Toast.hide();
-        Toast.show({
-          type: 'success',
-          text1: 'Back Online',
-          text2: 'Connection restored.',
-          visibilityTime: 3000,
-        });
       }
     });
-
     return () => unsubscribe();
   }, []);
 
@@ -72,19 +83,31 @@ export default function RootLayout() {
     if (session && inAuthGroup) {
       router.replace('/(tabs)/home');
     } else if (!session && !inAuthGroup) {
-      router.replace('/(auth)/');
+      router.replace('/(auth)/login');
     }
   }, [session, initialized, segments, fontsLoaded]);
 
   if (!fontsLoaded || !initialized) {
-    return <View style={{flex:1, justifyContent:'center', backgroundColor: '#0f172a'}}><ActivityIndicator color="#4ADE80" /></View>;
+    return (
+      <View style={{flex:1, justifyContent:'center', backgroundColor: '#0f172a'}}>
+        <ActivityIndicator color="#4ADE80" size="large" />
+      </View>
+    );
   }
 
+
   return (
-    <>
-      <Slot />
-      {/* 2. Place the Toast component at the very bottom of your return */}
-      <Toast /> 
-    </>
+
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      {/* 1. Wrap the tree in KeyboardProvider */}
+      <KeyboardProvider> 
+        <QueryClientProvider client={queryClient}>
+          <BottomSheetModalProvider>
+            <Slot />
+            <Toast />
+          </BottomSheetModalProvider>
+        </QueryClientProvider>
+      </KeyboardProvider>
+    </GestureHandlerRootView>
   );
 }

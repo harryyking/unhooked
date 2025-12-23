@@ -1,33 +1,26 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  ActivityIndicator, 
-  Alert, 
-  Image, 
-  Platform 
-} from 'react-native';
+import React, { useState } from 'react';
+import { View, Platform, ActivityIndicator, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { LinearGradient } from 'expo-linear-gradient';
-import { supabase } from '../../lib/supabase';
-import { ShieldCheck } from 'lucide-react-native'; // Or your icon library
+import { supabase } from '@/lib/supabase';
+import { ShieldCheck } from 'lucide-react-native';
 
-// Configure Google Sign-In once (outside component)
+// --- React Native Reusables Imports ---
+// (Ensure these components are generated in your /components/ui folder)
+import { Button } from '@/components/ui/button'; 
+import { Text } from '@/components/ui/text';
+
 GoogleSignin.configure({
   scopes: ['email', 'profile'],
-  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID, // Setup in .env
+  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
 });
 
 export default function LoginScreen() {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  // 1. APPLE SIGN IN LOGIC
   const handleAppleLogin = async () => {
     setLoading(true);
     try {
@@ -43,18 +36,11 @@ export default function LoginScreen() {
           provider: 'apple',
           token: credential.identityToken,
         });
-
         if (error) throw error;
-        
-        // Setup user profile if it's their first time
-        if (data.session) {
-           await initializeUserProfile(data.session.user.id);
-        }
+        if (data.session) await initializeUserProfile(data.session.user.id);
       }
     } catch (e: any) {
-      if (e.code === 'ERR_CANCELED') {
-        // User cancelled, do nothing
-      } else {
+      if (e.code !== 'ERR_CANCELED') {
         Alert.alert('Error', e.message || 'Apple Sign-In failed');
       }
     } finally {
@@ -62,46 +48,34 @@ export default function LoginScreen() {
     }
   };
 
-  // 2. GOOGLE SIGN IN LOGIC
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
       await GoogleSignin.hasPlayServices();
       const userInfo = await GoogleSignin.signIn();
-      
       if (userInfo.data?.idToken) {
         const { error, data } = await supabase.auth.signInWithIdToken({
           provider: 'google',
           token: userInfo.data.idToken,
         });
-
         if (error) throw error;
-
-        if (data.session) {
-          await initializeUserProfile(data.session.user.id);
-        }
+        if (data.session) await initializeUserProfile(data.session.user.id);
       }
     } catch (error: any) {
-      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-        // User cancelled
-      } else {
-        Alert.alert('Error', 'Google Sign-In failed. Please try again.');
-        console.error(error);
+      if (error.code !== statusCodes.SIGN_IN_CANCELLED) {
+        Alert.alert('Error', 'Google Sign-In failed.');
       }
     } finally {
       setLoading(false);
     }
   };
 
-  // 3. Helper to create the initial Profile row
   const initializeUserProfile = async (userId: string) => {
-    // Check if profile exists first to avoid overwriting data
     const { data } = await supabase.from('profiles').select('id').eq('id', userId).single();
-    
     if (!data) {
       await supabase.from('profiles').insert({
         id: userId,
-        life_tree_stage: 1, // Start as a seed
+        life_tree_stage: 1,
         current_streak: 0,
         xp_points: 0
       });
@@ -109,133 +83,77 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      {/* Background Gradient for a "Hopeful" vibe */}
-      <LinearGradient
-        colors={['#0f172a', '#1e293b', '#0f172a']}
-        style={StyleSheet.absoluteFill}
-      />
+    <View className="flex-1 bg-background">
+    {/* 1. Background Gradient using Theme Variables */}
+    {/* Note: We use the 'background' variable for the base and 'muted' or 'card' for the depth */}
+    <LinearGradient
+      colors={['#020617', '#0f172a', '#020617']} // Or use tailwind color names if configured
+      className="absolute inset-0"
+    />
 
-      <SafeAreaView style={styles.content}>
-        
-        {/* Header Section */}
-        <View style={styles.header}>
-          <View style={styles.iconCircle}>
-            <ShieldCheck size={40} color="#4ADE80" />
-          </View>
-          <Text style={styles.appName}>UNHOOKED</Text>
-          <Text style={styles.tagline}>Break free. Stand firm. Grow roots.</Text>
+    <SafeAreaView className="flex-1 px-6 justify-between">
+      
+      {/* 2. Header Section */}
+      <View className="flex-1 justify-center items-center mt-12">
+        {/* Using primary/10 for that subtle brand glow */}
+        <View className="w-24 h-24 rounded-full bg-primary/10 border border-primary/20 justify-center items-center mb-6 shadow-2xl shadow-primary/40">
+          <ShieldCheck size={48} className="text-primary" />
         </View>
+        
+        <Text className="text-foreground text-4xl font-extrabold tracking-[4px] uppercase">
+          Unhooked
+        </Text>
+        
+        <Text className="text-muted-foreground text-center mt-4 text-lg font-medium px-4">
+          Break free. Stand firm. Grow roots.
+        </Text>
+      </View>
 
-        {/* Buttons Section */}
-        <View style={styles.authContainer}>
-          {loading ? (
-            <ActivityIndicator size="large" color="#4ADE80" style={{ marginBottom: 40 }} />
-          ) : (
-            <>
-              {/* Native Apple Button */}
-              {Platform.OS === 'ios' && (
-                <AppleAuthentication.AppleAuthenticationButton
-                  buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-                  buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
-                  cornerRadius={14}
-                  style={styles.appleButton}
-                  onPress={handleAppleLogin}
-                />
-              )}
+      {/* 3. Auth Buttons Section */}
+      <View className="w-full pb-10 gap-4">
+        {loading ? (
+          <View className="h-24 justify-center">
+            <ActivityIndicator size="large" className="text-primary" />
+          </View>
+        ) : (
+          <>
+            {/* Apple Button (Requires hex values for native styling) */}
+            {Platform.OS === 'ios' && (
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+                cornerRadius={16}
+                style={{ width: '100%', height: 56 }}
+                onPress={handleAppleLogin}
+              />
+            )}
 
-              {/* Custom Google Button */}
-              <TouchableOpacity style={styles.googleButton} onPress={handleGoogleLogin}>
-                <Image 
-                  source={{ uri: 'https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg' }} 
-                  style={styles.googleIcon} 
-                />
-                <Text style={styles.googleText}>Sign in with Google</Text>
-              </TouchableOpacity>
-            </>
-          )}
+            {/* Google Button using 'secondary' or 'outline' for contrast */}
+            <Button 
+              variant="secondary" 
+              className="rounded-2xl h-[56px] flex-row gap-3 shadow-sm active:opacity-90 bg-white border-0"
+              onPress={handleGoogleLogin}
+            >
+              <Image 
+                source={{ uri: 'https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg' }} 
+                className="w-5 h-5" 
+              />
+              <Text className="text-black font-semibold text-lg">Continue with Google</Text>
+            </Button>
+          </>
+        )}
 
-          <Text style={styles.legalText}>
-            By continuing, you agree to our Terms of Service and Privacy Policy. 
-            We do not sell your data.
+        {/* Legal text using 'muted-foreground' */}
+        <View className="mt-6 px-6">
+          <Text className="text-muted-foreground text-xs text-center leading-5">
+            By continuing, you agree to our{' '}
+            <Text className="text-foreground font-semibold underline text-xs">Terms</Text>
+            {' '}and{' '}
+            <Text className="text-foreground font-semibold underline text-xs">Privacy Policy</Text>.
           </Text>
         </View>
-      </SafeAreaView>
-    </View>
-  );
+      </View>
+    </SafeAreaView>
+  </View>
+   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    padding: 24,
-    justifyContent: 'space-between',
-  },
-  header: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 60,
-  },
-  iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(74, 222, 128, 0.1)', // Subtle green glow
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(74, 222, 128, 0.2)',
-  },
-  appName: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#F8FAFC',
-    letterSpacing: 3,
-  },
-  tagline: {
-    fontSize: 16,
-    color: '#94A3B8',
-    marginTop: 12,
-    textAlign: 'center',
-  },
-  authContainer: {
-    width: '100%',
-    paddingBottom: 40,
-    gap: 16,
-  },
-  appleButton: {
-    width: '100%',
-    height: 54,
-  },
-  googleButton: {
-    width: '100%',
-    height: 54,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  googleIcon: {
-    width: 20,
-    height: 20,
-  },
-  googleText: {
-    color: '#000000',
-    fontSize: 19,
-    fontWeight: '500', // Matches Apple's font weight
-  },
-  legalText: {
-    color: '#64748B',
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 20,
-    lineHeight: 18,
-  }
-});

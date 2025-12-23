@@ -56,9 +56,8 @@
           "color": "#ffffff"
         }
       ],
-      [
-        "expo-audio"
-      ],
+        "expo-audio",
+      
       "expo-font",
       "@react-native-google-signin/google-signin",
       "expo-asset"

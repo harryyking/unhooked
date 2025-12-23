@@ -31,14 +31,14 @@ export default function AuthLayout() {
         {/* Symptoms and results display */}
         <Stack.Screen name="results" />
 
-        {/* Final sales page / Subscription */}
-        <Stack.Screen name="paywall" />
-
         {/* Sign In with Apple / Google */}
         <Stack.Screen 
           name="login" 
           options={{
             presentation: 'formSheet', // Makes the login slide up from the bottom
+            sheetAllowedDetents: [0.50],
+            sheetGrabberVisible: true,
+            sheetCornerRadius: 40,
             animation: 'slide_from_bottom'
           }}
         />
