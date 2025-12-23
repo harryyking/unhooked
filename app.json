@@ -2,8 +2,8 @@
   "expo": {
     "name": "Unhooked",
     "slug": "unhooked",
-    "version": "1.0.1",
-    "runtimeVersion": "1.0.1",
+    "version": "1.0.3",
+    "runtimeVersion": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/images/unhooked-ios-icon-3.png",
     "scheme": "unhooked",
