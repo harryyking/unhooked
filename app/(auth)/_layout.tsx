@@ -11,8 +11,6 @@ export default function AuthLayout() {
         screenOptions={{
           // Hide the default native header so our custom UI takes over
           headerShown: false,
-          // Use a dark background color to prevent a white flash between transitions
-          contentStyle: { backgroundColor: '#0f172a' },
           // Enable smooth slide transitions (native feel)
           animation: 'slide_from_right',
         }}

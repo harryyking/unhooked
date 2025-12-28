@@ -1,20 +1,34 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Pressable } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Pressable, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowRight } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { ArrowRight, Sparkles } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient'; // Ensure this is installed
 import * as Haptics from 'expo-haptics';
-import { MotiView, AnimatePresence } from 'moti'; // For smooth transitions
+import { MotiView, MotiText } from 'moti';
 
 // --- UI Components ---
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 
+const { width } = Dimensions.get('window');
+
 const VERSES = [
-  { text: "I made a covenant with my eyes not to look lustfully at a young woman.", ref: "Job 31:1" },
-  { text: " Flee from sexual immorality. All other sins a person commits are outside the body, but whoever sins sexually, sins against their own body. 19 Do you not know that your bodies are temples of the Holy Spirit, who is in you, whom you have received from God? You are not your own", ref: "1 Cor 6:18-19" },
-  { text: "Walk by the Spirit, and you will not gratify the desires of the flesh.", ref: "Gal 5:16" }
+  { 
+    text: "I made a covenant with my eyes not to look lustfully at a young woman.", 
+    ref: "Job 31:1",
+    keyword: "Covenant" 
+  },
+  { 
+    text: "Flee from sexual immorality. Do you not know that your bodies are temples of the Holy Spirit?", 
+    ref: "1 Cor 6:18-19",
+    keyword: "Temple" 
+  },
+  { 
+    text: "Walk by the Spirit, and you will not gratify the desires of the flesh.", 
+    ref: "Gal 5:16",
+    keyword: "Spirit" 
+  }
 ];
 
 export default function WelcomeScreen() {
@@ -22,126 +36,174 @@ export default function WelcomeScreen() {
   const [verseIndex, setVerseIndex] = useState(0);
   const [displayText, setDisplayText] = useState('');
   const [isTyping, setIsTyping] = useState(true);
+  
+  // Use a ref to control the typing interval manually
+  const typingInterval = useRef<NodeJS.Timeout | null>(null);
 
   // --- Typewriter Logic ---
   useEffect(() => {
-    let i = 0;
-    setDisplayText('');
-    setIsTyping(true);
     const fullText = VERSES[verseIndex].text;
+    setDisplayText(''); // Reset text
+    setIsTyping(true);
+    let charIndex = 0;
 
-    const interval = setInterval(() => {
-      setDisplayText(fullText.slice(0, i + 1));
-      i++;
-      if (i >= fullText.length) {
-        clearInterval(interval);
+    // Clear any previous interval
+    if (typingInterval.current) clearInterval(typingInterval.current);
+
+    typingInterval.current = setInterval(() => {
+      setDisplayText((prev) => fullText.slice(0, charIndex + 1));
+      charIndex++;
+
+      // Provide very subtle haptic feedback on every few characters for "texture"
+      if (charIndex % 5 === 0) Haptics.selectionAsync();
+
+      if (charIndex >= fullText.length) {
+        if (typingInterval.current) clearInterval(typingInterval.current);
         setIsTyping(false);
       }
-    }, 45);
+    }, 35); // Slightly faster for better UX
 
-    return () => clearInterval(interval);
+    return () => {
+      if (typingInterval.current) clearInterval(typingInterval.current);
+    };
   }, [verseIndex]);
 
-  const handleNextVerse = useCallback(() => {
+  const handleInteraction = useCallback(() => {
+    // 1. If typing, FAST FORWARD to end
     if (isTyping) {
+      if (typingInterval.current) clearInterval(typingInterval.current);
       setDisplayText(VERSES[verseIndex].text);
       setIsTyping(false);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    } else if (verseIndex < VERSES.length - 1) {
+    } 
+    // 2. If done, go to NEXT verse
+    else if (verseIndex < VERSES.length - 1) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setVerseIndex(prev => prev + 1);
-    } else {
+    } 
+    // 3. If finished all verses, NAVIGATE
+    else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.push('/(auth)/quiz');
     }
   }, [verseIndex, isTyping]);
 
   return (
-    <Pressable onPress={handleNextVerse} className="flex-1 bg-background">
+    <View className="flex-1 bg-background">
+      {/* Background Gradient for Depth */}
       <LinearGradient
-        colors={['#020617', '#0f172a', '#020617']}
-        className="absolute inset-0"
+        colors={['transparent', 'rgba(74, 222, 128, 0.05)']} // Very subtle primary fade
+        style={{ position: 'absolute', width: '100%', height: '100%' }}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
       />
 
-      <SafeAreaView className="flex-1 px-10 justify-between">
-        {/* Top Branding */}
-        <MotiView 
-          from={{ opacity: 0, translateY: -10 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ delay: 200 }}
-          className="mt-8"
-        >
-          <Text className="text-primary text-xs font-bold tracking-[5px] uppercase opacity-70">
-            Unhooked
-          </Text>
-        </MotiView>
-
-        {/* Center Verse Section with Fade Transition */}
-        <View className="min-h-[350px] justify-center">
-          <AnimatePresence exitBeforeEnter>
-            <MotiView
-              key={verseIndex} // Key change triggers the transition
-              from={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 1.02 }}
-              transition={{ type: 'timing', duration: 400 }}
+      <Pressable onPress={handleInteraction} className="flex-1">
+        <SafeAreaView className="flex-1 px-8 justify-between">
+          
+          {/* --- TOP: Progress & Branding --- */}
+          <View className="mt-6 flex-row items-center justify-between">
+            <MotiView 
+              from={{ opacity: 0, translateX: -10 }}
+              animate={{ opacity: 1, translateX: 0 }}
+              transition={{ delay: 200 }}
+              className="flex-row items-center gap-2"
             >
-              <Text className="text-foreground text-3xl font-medium leading-[46px] tracking-tight italic">
-                "{displayText}"
-                {isTyping && <View className="w-1.5 h-7 bg-primary ml-1" />}
+              <Sparkles size={16} className="text-primary opacity-80" />
+              <Text className="text-primary font-black tracking-[4px] uppercase opacity-80">
+                Unhooked
+              </Text>
+            </MotiView>
+
+            {/* Pagination Dots */}
+            <View className="flex-row gap-2">
+              {VERSES.map((_, i) => (
+                <MotiView 
+                  key={i} 
+                  animate={{ 
+                    scale: i === verseIndex ? 1.2 : 1,
+                    opacity: i === verseIndex ? 1 : 0.3,
+                    backgroundColor: i <= verseIndex ? '#4ADE80' : '#94a3b8' // primary-400 vs slate-400
+                  }}
+                  className="w-1.5 h-1.5 rounded-full"
+                />
+              ))}
+            </View>
+          </View>
+
+          {/* --- MIDDLE: The Verse --- */}
+          <View className="flex-1 justify-center">
+             {/* Key changes to remount the animation on new verse */}
+            <View className="relative">
+              {/* Giant Background Keyword (Visual Texture) */}
+              <MotiText
+                key={`bg-${verseIndex}`}
+                from={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 0.03, scale: 1 }}
+                transition={{ type: 'timing', duration: 1000 }}
+                className="absolute -top-10 -left-4 text-9xl font-black text-foreground uppercase tracking-tighter"
+              >
+                {VERSES[verseIndex].keyword}
+              </MotiText>
+
+              {/* The Actual Verse */}
+              <Text className="text-foreground text-3xl md:text-4xl font-serif font-medium leading-[1.4] tracking-tight">
+                “{displayText}”
+                {isTyping && <Text className="text-primary animate-pulse">|</Text>}
               </Text>
               
+              {/* The Reference (Animates in only when done typing) */}
               {!isTyping && (
                 <MotiView 
-                  from={{ opacity: 0 }} 
-                  animate={{ opacity: 1 }}
+                  from={{ opacity: 0, translateY: 10 }} 
+                  animate={{ opacity: 1, translateY: 0 }}
                   className="mt-8 flex-row items-center"
                 >
-                  <View className="h-[2px] w-6 bg-primary/40 mr-3" />
-                  <Text className="text-primary font-bold text-xl">
+                  <View className="h-[1px] w-12 bg-primary/50 mr-3" />
+                  <Text className="text-primary font-bold text-lg tracking-widest uppercase">
                     {VERSES[verseIndex].ref}
                   </Text>
                 </MotiView>
               )}
-            </MotiView>
-          </AnimatePresence>
-        </View>
-
-        {/* Bottom UI */}
-        <View className="mb-12">
-          {/* Custom Progress Bar */}
-          <View className="flex-row gap-3 mb-10 items-center">
-            {VERSES.map((_, i) => (
-              <MotiView 
-                key={i} 
-                animate={{ 
-                  width: i === verseIndex ? 32 : 12,
-                  backgroundColor: i === verseIndex ? '#4ADE80' : '#334155' 
-                }}
-                className="h-1.5 rounded-full" 
-              />
-            ))}
+            </View>
           </View>
 
-          <View className="flex-row items-center justify-between">
-            <Text className="text-muted-foreground font-medium text-sm">
-              {isTyping ? "Focusing..." : "Tap to continue"}
-            </Text>
-            
-            {!isTyping && verseIndex === VERSES.length - 1 && (
-              <MotiView from={{ scale: 0 }} animate={{ scale: 1 }}>
-                <Button 
-                  onPress={() => router.push('/(auth)/quiz')}
-                  size="icon"
-                  className="rounded-full bg-primary h-14 w-14 shadow-lg shadow-primary/20"
+          {/* --- BOTTOM: Call to Action --- */}
+          <View className="mb-12 h-20 justify-end">
+            <View className="flex-row items-center justify-between">
+              <Text className="text-muted-foreground font-medium text-sm">
+                {isTyping ? "Tap to reveal..." : "Tap to continue"}
+              </Text>
+
+              {!isTyping && verseIndex === VERSES.length - 1 && (
+                <MotiView 
+                  from={{ scale: 0, opacity: 0 }} 
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: 'spring' }}
                 >
-                  <ArrowRight size={24} className="text-background" />
-                </Button>
-              </MotiView>
-            )}
+                  <Button 
+                    onPress={() => router.push('/(auth)/quiz')}
+                    size="icon"
+                    className="ml-auto rounded-full bg-primary shadow-xl shadow-primary/20"
+                  >
+                    <ArrowRight size={24} className="text-slate-900" />
+                  </Button>
+                </MotiView>
+              )}
+              
+              {/* Subtle Arrow for normal progression */}
+              {!isTyping && verseIndex < VERSES.length - 1 && (
+                <MotiView 
+                  from={{ opacity: 0, translateX: -10 }} 
+                  animate={{ opacity: 1, translateX: 0 }}
+                >
+                   <ArrowRight size={20} className="text-muted-foreground opacity-50" />
+                </MotiView>
+              )}
+            </View>
           </View>
-        </View>
-      </SafeAreaView>
-    </Pressable>
+        </SafeAreaView>
+      </Pressable>
+    </View>
   );
 }

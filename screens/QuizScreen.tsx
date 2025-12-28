@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { View, TouchableOpacity } from 'react-native';
+import { View, TouchableOpacity, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView, AnimatePresence } from 'moti';
 import * as Haptics from 'expo-haptics';
-import { ChevronRight } from 'lucide-react-native';
 
 // --- UI Components & Store ---
 import { Text } from '@/components/ui/text';
@@ -98,14 +97,13 @@ export default function QuizScreen() {
                 animate={{ opacity: 1, translateY: 0 }}
                 transition={{ delay: i * 50 }}
               >
-                <TouchableOpacity
-                  activeOpacity={0.7}
+                <Button
                   onPress={() => handleAnswer(option.value)}
-                  className="bg-card border border-border p-5 rounded-2xl flex-row justify-between items-center active:bg-primary/5 active:border-primary/40"
+                  className="bg-card border border-border p-8 rounded-2xl flex-row justify-between items-center active:bg-primary/5 active:border-primary/40"
                 >
                   <Text className="text-card-foreground text-lg font-medium">{option.label}</Text>
-                  <ChevronRight size={20} className="text-muted-foreground" />
-                </TouchableOpacity>
+                  
+                </Button>
               </MotiView>
             ))}
           </View>

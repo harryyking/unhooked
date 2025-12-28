@@ -1,8 +1,10 @@
+import '@/global.css'
 import { useEffect, useState } from 'react';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { View, ActivityIndicator } from 'react-native';
+import { useColorScheme } from 'nativewind';
 import NetInfo from '@react-native-community/netinfo';
 import Toast from 'react-native-toast-message';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'; // 1. Import TanStack Query
@@ -17,6 +19,12 @@ import {
 import { GestureHandlerRootView } from 'react-native-gesture-handler'; // 1. Import Gesture Handler
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet'; // 2. Import Bottom Sheet Provider
 import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { ThemeProvider } from '@react-navigation/native';
+import { NAV_THEME } from '@/lib/theme';
+import * as SplashScreen from 'expo-splash-screen'; // 1. Import Splash Screen
+
+// 2. Prevent the splash screen from auto-hiding immediately
+SplashScreen.preventAutoHideAsync();
 
 // 2. Initialize the QueryClient outside the component to prevent re-renders
 const queryClient = new QueryClient({
@@ -33,6 +41,7 @@ export default function RootLayout() {
   const [initialized, setInitialized] = useState(false);
   const segments = useSegments();
   const router = useRouter();
+  const { colorScheme } = useColorScheme();
 
   const [fontsLoaded] = useFonts({
     PlusJakartaSans_300Light,
@@ -100,6 +109,7 @@ export default function RootLayout() {
 
     <GestureHandlerRootView style={{ flex: 1 }}>
       {/* 1. Wrap the tree in KeyboardProvider */}
+      <ThemeProvider value={NAV_THEME['dark']}>
       <KeyboardProvider> 
         <QueryClientProvider client={queryClient}>
           <BottomSheetModalProvider>
@@ -108,6 +118,7 @@ export default function RootLayout() {
           </BottomSheetModalProvider>
         </QueryClientProvider>
       </KeyboardProvider>
+      </ThemeProvider>
     </GestureHandlerRootView>
   );
 }
