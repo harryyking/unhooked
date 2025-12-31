@@ -10,10 +10,9 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/unhooked-splash-3.png",
-      "resizeMode": "contain",
-      "imageWidth": 100,
-      "backgroundColor": "#161617"
+      "image": "./assets/images/SplashScreen.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#020617"
     },
     "assetBundlePatterns": [
       "**/*"
