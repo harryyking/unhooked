@@ -1,0 +1,14 @@
+{
+  "findings": [
+    {
+      "ruleId": "EXPO_INSECURE_PERMISSIONS",
+      "description": "Dangerous permission detected: android.permission.RECORD_AUDIO",
+      "severity": "LOW",
+      "filePath": "D:/Harry/unhook/unhooked/app.json",
+      "suggestion": "Only request necessary permissions and explain usage to users"
+    }
+  ],
+  "scannedFiles": 66,
+  "duration": 2098,
+  "timestamp": "2025-12-28T12:55:26.983Z"
+}

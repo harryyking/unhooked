@@ -1,9 +1,8 @@
 import React, { useState, useRef } from 'react';
-import { View, Dimensions, FlatList, Animated } from 'react-native';
-import { useRouter } from 'expo-router';
+import { View, FlatList, Dimensions, Animated, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MotiView, AnimatePresence, MotiText } from 'moti';
-import { ArrowRight, Brain, ShieldAlert, Sparkles, Check } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { ArrowRight, Brain, Heart, Zap } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 
@@ -11,73 +10,97 @@ import * as Haptics from 'expo-haptics';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 const SLIDES = [
   {
-    id: 'diagnosis',
-    status: 'CRITICAL',
-    title: 'High Dopamine Dependency',
-    subtitle: 'Your assessment shows significant digital fatigue affecting your focus.',
-    gradient: ['#450a0a', '#020617'], // Dark Red
-    icon: <Brain size={60} color="#ef4444" />,
+    id: '1',
+    tag: 'THE BIOLOGY',
+    title: 'The Dopamine Trap',
+    description: 'Pornography hijacks your brain’s reward system, making real-life joy feel dull and distant.',
+    icon: <Brain size={64} color="#FFF" strokeWidth={1.5} />,
+    instruction: 'Rewiring begins with understanding the mechanism.'
   },
   {
-    id: 'symptoms',
-    status: 'ANALYSIS',
-    title: 'Identified Struggles',
-    subtitle: 'Brain fog, spiritual distance, and loss of intentional time were detected.',
-    gradient: ['#1e1b4b', '#020617'], // Dark Blue
-    icon: <ShieldAlert size={60} color="#6366f1" />,
+    id: '2',
+    tag: 'THE SPIRIT',
+    title: 'The Spiritual Fog',
+    description: 'Constant consumption creates a barrier between you and the Holy Spirit, leading to shame and isolation.',
+    icon: <Heart size={64} color="#FFF" strokeWidth={1.5} />,
+    instruction: 'Grace is the light that breaks the fog.'
   },
   {
-    id: 'solution',
-    status: 'THE CURE',
-    title: 'The Unhooked Method',
-    subtitle: 'A science-backed protocol to rewire your brain for Godly joy.',
-    gradient: ['#064e3b', '#020617'], // Dark Green
-    icon: <Sparkles size={60} color="#10b981" />,
+    id: '3',
+    tag: 'THE PATH',
+    title: 'Active Restoration',
+    description: 'Unhooked provides the tools to starve the addiction and feed your spirit through science and faith.',
+    icon: <Zap size={64} color="#FFF" strokeWidth={1.5} />,
+    instruction: 'Your new rhythm of life starts today.'
   }
 ];
 
-export default function ResultsSlider() {
-  const [activeIndex, setActiveIndex] = useState(0);
-  const scrollX = useRef(new Animated.Value(0)).current;
+export default function ResultScreen() {
+  const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
   const router = useRouter();
 
   const handleNext = () => {
-    if (activeIndex < SLIDES.length - 1) {
-      flatListRef.current?.scrollToIndex({ index: activeIndex + 1 });
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (currentIndex < SLIDES.length - 1) {
+      flatListRef.current?.scrollToIndex({
+        index: currentIndex + 1,
+        animated: true,
+      });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.push('/(auth)/features');
     }
   };
 
-  return (
-    <View className="flex-1 bg-slate-950">
-      {/* Dynamic Background Gradient */}
-      <AnimatePresence>
-        <MotiView
-          key={SLIDES[activeIndex].id}
-          from={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="absolute inset-0"
-        >
-  
-        </MotiView>
-      </AnimatePresence>
+  const renderItem = ({ item }: { item: typeof SLIDES[0] }) => (
+    <View style={styles.slideContainer}>
+      {/* Visual Illustration Area */}
+      <View style={styles.illustrationWrapper}>
+        <View style={styles.iconContainer}>
+          {/* Subtle glow behind the icon */}
+          <View style={styles.iconGlow} />
+          {item.icon}
+        </View>
+      </View>
 
-      <SafeAreaView className="flex-1">
-        {/* Progress Dots */}
-        <View className="flex-row justify-center gap-2 mt-4">
+      {/* Content Area */}
+      <View style={styles.textWrapper}>
+        <Text style={styles.tagText}>{item.tag}</Text>
+        <Text style={styles.titleText}>{item.title}</Text>
+        <Text style={styles.descriptionText}>{item.description}</Text>
+        
+        <View style={styles.instructionBox}>
+          <Text style={styles.instructionText}>
+            {item.instruction}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
+      <LinearGradient
+        colors={['#020617', '#082f49', '#0d9488']}
+        locations={[0, 0.5, 1]}
+        style={StyleSheet.absoluteFillObject}
+      />
+
+      <SafeAreaView style={styles.safeArea} >
+        {/* Simple Progress Indicator */}
+        <View style={styles.progressContainer}>
           {SLIDES.map((_, i) => (
             <View 
               key={i} 
-              className={`h-1 rounded-full ${i === activeIndex ? 'w-8 bg-white' : 'w-2 bg-white/20'}`} 
+              style={[
+                styles.progressDot, 
+                { backgroundColor: i === currentIndex ? '#FFF' : 'rgba(255,255,255,0.2)' }
+              ]} 
             />
           ))}
         </View>
@@ -85,67 +108,136 @@ export default function ResultsSlider() {
         <FlatList
           ref={flatListRef}
           data={SLIDES}
+          renderItem={renderItem}
           horizontal
           pagingEnabled
+          scrollEnabled={false}
           showsHorizontalScrollIndicator={false}
-          onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: false })}
-          onMomentumScrollEnd={(e) => setActiveIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
+          onMomentumScrollEnd={(event) => {
+            const index = Math.round(event.nativeEvent.contentOffset.x / width);
+            setCurrentIndex(index);
+          }}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <View style={{ width }} className="px-10 justify-center items-center">
-              <MotiView
-                from={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ type: 'spring', delay: 200 }}
-      
-                className="w-40 h-40 rounded-full bg-white/5 border text-foreground border-white/10 items-center justify-center mb-10"
-              >
-                {item.icon}
-              </MotiView>
-
-              <MotiText 
-                from={{ opacity: 0, translateY: 10 }}
-                animate={{ opacity: 1, translateY: 0 }}
-                transition={{ delay: 400 }}
-                className="text-white/50 tracking-[4px] uppercase text-xs"
-              >
-                {item.status}
-              </MotiText>
-
-              <MotiText 
-                from={{ opacity: 0, translateY: 10 }}
-                animate={{ opacity: 1, translateY: 0 }}
-                transition={{ delay: 500 }}
-                className=" text-4xl font-bold text-center mt-2"
-              >
-                {item.title}
-              </MotiText>
-
-              <MotiText 
-                from={{ opacity: 0, translateY: 10 }}
-                animate={{ opacity: 1, translateY: 0 }}
-                transition={{ delay: 600 }}
-                className=" text-center mt-4 text-lg leading-7"
-              >
-                {item.subtitle}
-              </MotiText>
-            </View>
-          )}
         />
 
-        {/* Footer Action */}
-        <View className="px-8 pb-10">
+        {/* Footer Button */}
+        <View style={styles.footer}>
           <Button 
             onPress={handleNext}
-            className="h-16 rounded-2xl bg-white flex-row items-center justify-center gap-3"
+            style={styles.nextButton}
           >
-            <Text className="text-sm uppercase tracking-widest">
-              {activeIndex === SLIDES.length - 1 ? "Start My Journey" : "Continue"}
-            </Text>
-            <ArrowRight size={20} color="#020617" />
+            <View style={styles.buttonContent}>
+              <Text style={styles.buttonLabel}>
+                {currentIndex === SLIDES.length - 1 ? "Enter Sanctuary" : "Continue"}
+              </Text>
+              <ArrowRight size={22} color="#000" />
+            </View>
           </Button>
         </View>
       </SafeAreaView>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  safeArea: { flex: 1 },
+  progressContainer: {
+    flexDirection: 'row',
+    paddingTop:10,
+    paddingHorizontal: 40,
+    height: 3,
+    gap: 8,
+    marginTop: 20,
+  },
+  progressDot: {
+    flex: 1,
+    borderRadius: 2,
+  },
+  slideContainer: {
+    width: width,
+    paddingHorizontal: 40,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  illustrationWrapper: {
+    alignItems: 'center',
+    marginBottom: 60,
+  },
+  iconContainer: {
+    width: 220,
+    height: 220,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  iconGlow: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 50,
+    filter: 'blur(30px)', // Note: standard blur might require specific Expo modules, or use a PNG
+  },
+  textWrapper: {
+    marginTop: 20,
+  },
+  tagText: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontFamily: 'Sans-Bold',
+    fontSize: 10,
+    letterSpacing: 4,
+    marginBottom: 12,
+  },
+  titleText: {
+    color: '#FFF',
+    fontSize: 38,
+    fontFamily: 'Serif-Regular',
+    lineHeight: 46,
+    marginBottom: 20,
+  },
+  descriptionText: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 18,
+    lineHeight: 28,
+    fontFamily: 'Sans-Regular',
+    marginBottom: 40,
+  },
+  instructionBox: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    padding: 20,
+    borderRadius: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FFF',
+  },
+  instructionText: {
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontSize: 14,
+    fontFamily: 'Serif-Italic',
+    lineHeight: 20,
+  },
+  footer: {
+    paddingHorizontal: 32,
+    paddingBottom: 48,
+  },
+  nextButton: {
+    backgroundColor: '#FFF',
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  buttonLabel: {
+    color: '#000',
+    fontSize: 18,
+    fontFamily: 'Sans-Medium',
+  },
+});

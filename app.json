@@ -10,7 +10,7 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/unhooked-ios-icon-3.png",
+      "image": "./assets/images/unhooked-splash-3.png",
       "resizeMode": "contain",
       "imageWidth": 100,
       "backgroundColor": "#161617"
@@ -21,6 +21,7 @@
     "ios": {
       "supportsTablet": true,
       "usesAppleSignIn": true,
+      
       "bundleIdentifier": "com.harryking.unhooked",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -35,11 +36,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.harryking.unhooked",
-      "permissions": [
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
-      ]
+      "package": "com.harryking.unhooked"
     },
     "web": {
       "bundler": "metro",

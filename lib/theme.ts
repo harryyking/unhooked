@@ -2,60 +2,65 @@ import { DarkTheme, DefaultTheme, type Theme } from '@react-navigation/native';
 
 export const THEME = {
   dark: {
-    // GEMINI "SURFACE" GRAY (Neutral Matte)
+    // CLAUDE-INSPIRED "WARM SLATE" THEME
     
-    // Background: Not black, but a deep matte charcoal (#131314)
-    background: 'hsl(240 2% 9%)', 
+    // Background: A deep, warm charcoal (almost espresso). 
+    // It feels organic, not void-like.
+    background: 'hsl(30 6% 11%)', 
     
-    // Text: Soft white, not harsh (#E3E3E3)
-    foreground: 'hsl(0 0% 89%)', 
+    // Text: A warm, creamy off-white. 
+    // Easier on the eyes than pure white, feels like old paper.
+    foreground: 'hsl(30 15% 94%)', 
     
-    // Card: The main "Surface" color (#1E1F20) - Distinct from BG but subtle
-    card: 'hsl(240 2% 13%)', 
-    cardForeground: 'hsl(0 0% 98%)',
+    // Card: Slightly lighter warm grey. 
+    // Think: Smooth river stone. Distinct, but blends softly.
+    card: 'hsl(30 4% 16%)', 
+    cardForeground: 'hsl(30 15% 94%)',
     
     // Popover: Matches card surface
-    popover: 'hsl(240 2% 13%)',
-    popoverForeground: 'hsl(0 0% 98%)',
+    popover: 'hsl(30 4% 16%)',
+    popoverForeground: 'hsl(30 15% 94%)',
     
-    // Primary: High contrast soft white (for main buttons) or Gemini Blue if you prefer
-    // Gemini often uses white buttons on dark mode for high visibility
-    primary: 'hsl(0 0% 98%)', 
-    primaryForeground: 'hsl(240 2% 9%)', // Black text on white button
+    // Primary: "Clay" / "Terracotta".
+    // This is the signature Claude accent. 
+    // It is energetic but grounded. It implies "building" and "restoration."
+    primary: 'hsl(27 85% 65%)', 
+    primaryForeground: 'hsl(30 6% 10%)', // Dark text on clay button for contrast
     
-    // Secondary: Used for inputs/pills (#28292A) - Lighter than card
-    secondary: 'hsl(240 2% 18%)', 
-    secondaryForeground: 'hsl(0 0% 98%)',
+    // Secondary: Muted warm brown/grey. Used for pills/inputs.
+    secondary: 'hsl(30 4% 22%)', 
+    secondaryForeground: 'hsl(30 15% 96%)',
     
-    // Muted: For disabled items or subtitles
-    muted: 'hsl(240 2% 18%)',
-    mutedForeground: 'hsl(240 2% 60%)', // Medium grey text
+    // Muted: Subtle separation.
+    muted: 'hsl(30 4% 22%)',
+    mutedForeground: 'hsl(30 5% 65%)', // Warm grey text
     
-    // Accent: Used for hover states (#303132)
-    accent: 'hsl(240 2% 22%)',
-    accentForeground: 'hsl(0 0% 98%)',
+    // Accent: Used for hover/press states.
+    accent: 'hsl(30 4% 28%)',
+    accentForeground: 'hsl(30 15% 98%)',
     
-    destructive: 'hsl(0 62.8% 30.6%)',
+    // Destructive: A muted brick red. 
+    // Serious, but not shouting "ERROR" like a neon sign.
+    destructive: 'hsl(0 70% 50%)',
     
-    // Border: Subtle separation, barely visible
-    border: 'hsl(240 2% 20%)',
-    input: 'hsl(240 2% 20%)',
+    // Border: Very subtle warm line.
+    border: 'hsl(30 4% 20%)',
+    input: 'hsl(30 4% 20%)',
     
-    // Ring: Focus states (Gemini Blueish)
-    ring: 'hsl(212 90% 60%)',
-    radius: '0.75rem',
+    // Ring: The focus ring matches the Primary Clay color.
+    ring: 'hsl(27 85% 65%)',
+    radius: '0.75rem', // Claude uses slightly softer, rounded corners
     
-    // Charts: Pastel/Neon accents typical of AI interfaces
-    chart1: 'hsl(220 70% 50%)',
-    chart2: 'hsl(160 60% 45%)',
-    chart3: 'hsl(30 80% 55%)',
-    chart4: 'hsl(280 65% 60%)',
-    chart5: 'hsl(340 75% 55%)',
+    // Charts: Earthy, distinct tones suitable for tracking progress (streaks).
+    chart1: 'hsl(27 85% 65%)',  // The Clay (Primary)
+    chart2: 'hsl(173 58% 39%)', // Muted Teal (Growth/Nature)
+    chart3: 'hsl(43 74% 66%)',  // Sand/Gold (Divine/Light)
+    chart4: 'hsl(12 76% 61%)',  // Burnt Sienna
+    chart5: 'hsl(270 20% 60%)', // Muted Purple (Royal/Spiritual)
   },
 };
 
-
-// ... Your NAV_THEME remains exactly the same, it will inherit these values
+// NAV_THEME inherits the new warm tones
 export const NAV_THEME: Record<'dark', Theme> = {
   dark: {
     ...DarkTheme,

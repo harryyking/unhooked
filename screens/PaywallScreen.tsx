@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { View, ScrollView, TouchableOpacity, Platform, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView, MotiText, AnimatePresence } from 'moti';
@@ -48,6 +48,7 @@ export default function PaywallScreen() {
 
   return (
     <View className="flex-1 bg-background">
+      
       {/* Background Ambient Glow */}
       <View className="absolute top-[-100] left-[-50] w-[300] h-[300] bg-primary/10 rounded-full blur-3xl" />
 
@@ -186,3 +187,10 @@ function FeatureRow({ icon, title, subtitle }: { icon: any, title: string, subti
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+
+  }
+})

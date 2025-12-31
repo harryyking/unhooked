@@ -32,13 +32,6 @@ export default function AuthLayout() {
         {/* Sign In with Apple / Google */}
         <Stack.Screen 
           name="login" 
-          options={{
-            presentation: 'formSheet', // Makes the login slide up from the bottom
-            sheetAllowedDetents: [0.50],
-            sheetGrabberVisible: true,
-            sheetCornerRadius: 40,
-            animation: 'slide_from_bottom'
-          }}
         />
       </Stack>
     </>

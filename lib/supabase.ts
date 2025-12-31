@@ -1,33 +1,32 @@
-import 'react-native-url-polyfill/auto';
+import { Database } from '@/types/supabase';
 import { createClient } from '@supabase/supabase-js';
-import { createMMKV, MMKV } from 'react-native-mmkv';
-import { Database } from '../types/supabase';
+import { deleteItemAsync, getItemAsync, setItemAsync } from 'expo-secure-store';
 
-// 1. Initialize MMKV instance
-const storage =  createMMKV();
-
-// 2. Create a Supabase-compatible adapter
-const mmkvAdapter = {
+const ExpoSecureStoreAdapter = {
   getItem: (key: string) => {
-    return storage.getString(key) ?? null;
+    console.debug("getItem", { key, getItemAsync })
+    return getItemAsync(key)
   },
   setItem: (key: string, value: string) => {
-    storage.set(key, value);
+    if (value.length > 2048) {
+      console.warn('Value being stored in SecureStore is larger than 2048 bytes and it may not be stored successfully. In a future SDK version, this call may throw an error.')
+    }
+    return setItemAsync(key, value)
   },
   removeItem: (key: string) => {
-    storage.remove(key);
+    return deleteItemAsync(key)
   },
 };
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_KEY!;
-
-// 3. Initialize Client
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    storage: mmkvAdapter, // Use the adapter here
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
+export const supabase = createClient<Database>(
+  process.env.EXPO_PUBLIC_SUPABASE_URL ?? '',
+  process.env.EXPO_PUBLIC_SUPABASE_KEY ?? '',
+  {
+    auth: {
+      storage: ExpoSecureStoreAdapter as any,
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+    },
   },
-});
+);
