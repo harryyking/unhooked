@@ -1,31 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, Platform, StyleSheet } from 'react-native';
+import { View, ScrollView, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MotiView, MotiText, AnimatePresence } from 'moti';
-import { Shield, Zap, Star, Lock, Check, X, Crown } from 'lucide-react-native';
+import { MotiView, AnimatePresence } from 'moti';
+import { Shield, Zap, Star, Lock, Check, X, Crown, TrendingUp } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { BlurView } from 'expo-blur'; // Optional: If you use expo-blur, otherwise View with opacity
 
 // --- UI Components ---
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
+
+const { width } = Dimensions.get('window');
 
 const PLANS = [
   {
     id: 'weekly_pro',
     name: 'Weekly',
     price: '$4.99',
-    description: 'Billed weekly',
+    description: 'Billed every 7 days',
     tag: null,
   },
   {
     id: 'yearly_pro',
     name: 'Annual',
     price: '$39.99',
-    description: 'Just $3.33/mo',
-    tag: 'BEST VALUE',
-    savings: '80%',
+    description: '$3.33 / month',
+    tag: 'SAVE 80%',
+    isBestValue: true,
   },
 ];
 
@@ -34,7 +37,7 @@ export default function PaywallScreen() {
   const [selectedPlan, setSelectedPlan] = useState('yearly_pro');
   const [showClose, setShowClose] = useState(false);
 
-  // Close button cooldown (from your Swift logic)
+  // 3-second delay before allowing close (conversion tactic)
   useEffect(() => {
     const timer = setTimeout(() => setShowClose(true), 3000);
     return () => clearTimeout(timer);
@@ -42,155 +45,438 @@ export default function PaywallScreen() {
 
   const handlePurchase = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    // Integrate RevenueCat or StoreKit here
+    // TODO: Integrate RevenueCat / StoreKit purchase logic here
     router.replace('/(tabs)/home');
   };
 
   return (
-    <View className="flex-1 bg-background">
-      
-      {/* Background Ambient Glow */}
-      <View className="absolute top-[-100] left-[-50] w-[300] h-[300] bg-primary/10 rounded-full blur-3xl" />
+    <View style={styles.container}>
+      {/* Consistent Background Gradient */}
+      <LinearGradient
+        colors={['#020617', '#082f49', '#0d9488']}
+        locations={[0, 0.5, 1]}
+        style={StyleSheet.absoluteFillObject}
+      />
 
-      <SafeAreaView className="flex-1">
-        {/* Header with Cooldown Close */}
-        <View className="flex-row justify-between items-center px-6 py-2">
-          <View className="flex-row items-center gap-2">
-            <Crown size={18} className="text-primary" />
-            <Text className="text-primary font-bold tracking-widest text-xs uppercase">Unhooked Pro</Text>
+      <SafeAreaView style={styles.safeArea}>
+        
+        {/* --- HEADER --- */}
+        <View style={styles.header}>
+          <View style={styles.proBadge}>
+            <Crown size={14} color="#0d9488" strokeWidth={3} />
+            <Text style={styles.proBadgeText}>PRO ACCESS</Text>
           </View>
           
           <AnimatePresence>
             {showClose && (
-              <MotiView from={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <TouchableOpacity onPress={() => router.back()} className="p-2">
-                  <X size={24} className="text-muted-foreground" />
+              <MotiView 
+                from={{ opacity: 0, scale: 0.8 }} 
+                animate={{ opacity: 1, scale: 1 }}
+                style={styles.closeButtonContainer}
+              >
+                <TouchableOpacity 
+                  onPress={() => router.back()} 
+                  style={styles.closeButton}
+                  hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+                >
+                  <X size={20} color="rgba(255,255,255,0.5)" />
                 </TouchableOpacity>
               </MotiView>
             )}
           </AnimatePresence>
         </View>
 
-        <ScrollView contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent} 
+          showsVerticalScrollIndicator={false}
+        >
           
-          {/* Hero Section: The "Shaking" Crown/Icon */}
-          <View className="items-center py-8">
+          {/* --- HERO SECTION --- */}
+          <View style={styles.heroSection}>
             <MotiView
-              from={{ scale: 0.9, rotate: '0deg' }}
-              animate={{ 
-                scale: [
-                  { value: 1.1, type: 'timing', duration: 1000 },
-                  { value: 1, type: 'timing', duration: 1000 }
-                ],
-                rotate: ['-3deg', '3deg', '-3deg']
-              }}
-              transition={{ 
-                loop: true,
-                type: 'timing',
-                duration: 2000 
-              }}
-              className="w-24 h-24 bg-primary/20 rounded-3xl items-center justify-center border border-primary/30"
+              from={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'timing', duration: 1000, loop: true }}
+              style={styles.heroIconContainer}
             >
-              <Crown size={48} className="text-primary" />
+              <Crown size={48} color="#FFF" strokeWidth={1.5} />
             </MotiView>
             
-            <Text className="text-foreground text-3xl font-black mt-6 text-center px-10">
-              Break the Cycle.{"\n"}Forever.
+            <Text style={styles.heroTitle}>
+              Unlock Your Full{'\n'}Potential
+            </Text>
+            <Text style={styles.heroSubtitle}>
+              Join thousands of men reclaiming their freedom.
             </Text>
           </View>
 
-          {/* Features List */}
-          <View className="px-8 gap-y-5 mb-10">
-            <FeatureRow icon={<Zap size={20} />} title="Neuro-shield AI blocking" subtitle="Blocks triggers across all apps." />
-            <FeatureRow icon={<Shield size={20} />} title="Deep Prayer integration" subtitle="Spiritual anchors for weak moments." />
-            <FeatureRow icon={<Star size={20} />} title="Advanced recovery metrics" subtitle="See your brain re-wiring in real-time." />
+          {/* --- FEATURES --- */}
+          <View style={styles.featuresContainer}>
+            <FeatureRow 
+              icon={<Zap size={20} color="#5eead4" />} 
+              title="Neuro-shield Blocking" 
+              subtitle="Advanced AI protection across apps." 
+            />
+            <FeatureRow 
+              icon={<Shield size={20} color="#5eead4" />} 
+              title="Panic Button Access" 
+              subtitle="Instant spiritual anchors for urges." 
+            />
+            <FeatureRow 
+              icon={<TrendingUp size={20} color="#5eead4" />} 
+              title="Recovery Analytics" 
+              subtitle="Visualize your brain rewiring." 
+            />
           </View>
 
-          {/* Pricing Cards */}
-          <View className="px-6 gap-y-4">
-            {PLANS.map((plan) => (
-              <TouchableOpacity
-                key={plan.id}
-                activeOpacity={0.8}
-                onPress={() => {
-                  setSelectedPlan(plan.id);
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                }}
-                className={`p-5 rounded-3xl border-2 flex-row items-center justify-between ${
-                  selectedPlan === plan.id ? 'border-primary bg-primary/5' : 'border-border bg-card'
-                }`}
-              >
-                <View className="flex-row items-center gap-4">
-                  <View className={`w-6 h-6 rounded-full border-2 items-center justify-center ${
-                    selectedPlan === plan.id ? 'border-primary bg-primary' : 'border-muted'
-                  }`}>
-                    {selectedPlan === plan.id && <Check size={14} color="black" strokeWidth={4} />}
+          {/* --- PRICING CARDS --- */}
+          <View style={styles.plansContainer}>
+            {PLANS.map((plan) => {
+              const isSelected = selectedPlan === plan.id;
+              
+              return (
+                <TouchableOpacity
+                  key={plan.id}
+                  activeOpacity={0.9}
+                  onPress={() => {
+                    setSelectedPlan(plan.id);
+                    Haptics.selectionAsync();
+                  }}
+                  style={[
+                    styles.planCard,
+                    isSelected && styles.planCardSelected
+                  ]}
+                >
+                  {/* Radio / Check Circle */}
+                  <View style={[styles.radioCircle, isSelected && styles.radioCircleSelected]}>
+                    {isSelected && <View style={styles.radioInner} />}
                   </View>
-                  <View>
-                    <Text className="text-foreground font-bold text-lg">{plan.name}</Text>
-                    <Text className="text-muted-foreground text-sm">{plan.description}</Text>
+
+                  {/* Text Content */}
+                  <View style={styles.planContent}>
+                    <Text style={[styles.planName, isSelected && styles.textSelected]}>
+                      {plan.name}
+                    </Text>
+                    <Text style={styles.planDesc}>{plan.description}</Text>
                   </View>
-                </View>
-                
-                <View className="items-end">
-                  <Text className="text-foreground font-black text-xl">{plan.price}</Text>
-                  {plan.tag && (
-                    <View className="bg-primary px-2 py-1 rounded-md mt-1">
-                      <Text className="text-[10px] font-bold text-primary-foreground">{plan.tag}</Text>
-                    </View>
-                  )}
-                </View>
-              </TouchableOpacity>
-            ))}
+
+                  {/* Price & Tag */}
+                  <View style={styles.planRight}>
+                    <Text style={[styles.planPrice, isSelected && styles.textSelected]}>
+                      {plan.price}
+                    </Text>
+                    {plan.tag && (
+                      <View style={styles.tagBadge}>
+                        <Text style={styles.tagText}>{plan.tag}</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Active Border Glow (Visual Trick) */}
+                  {isSelected && <View style={styles.activeBorder} />}
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
-          {/* Trust Labels */}
-          <View className="mt-8 items-center gap-2">
-            <View className="flex-row items-center gap-2">
-              <Lock size={12} className="text-muted-foreground" />
-              <Text className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold">
-                Secure payment via App Store
-              </Text>
-            </View>
-            <TouchableOpacity onPress={() => {/* Restore Logic */}}>
-              <Text className="text-primary/60 text-xs font-medium underline">Restore Purchase</Text>
+          {/* --- TRUST BADGES --- */}
+          <View style={styles.trustContainer}>
+            <Lock size={12} color="rgba(255,255,255,0.4)" />
+            <Text style={styles.trustText}>SECURED BY APPLE</Text>
+            <Text style={styles.dotSeparator}>•</Text>
+            <TouchableOpacity>
+              <Text style={styles.restoreText}>RESTORE PURCHASE</Text>
             </TouchableOpacity>
           </View>
+
         </ScrollView>
 
-        {/* Action Button */}
-        <View className="px-6 pb-4">
+        {/* --- FOOTER ACTION --- */}
+        <View style={styles.footer}>
           <Button 
             onPress={handlePurchase}
-            className="h-16 rounded-2xl bg-primary"
+            style={styles.ctaButton}
           >
-            <Text className="text-primary-foreground font-black text-lg">START MY TRANSFORMATION</Text>
+            <Text style={styles.ctaText}>Start Free Trial</Text>
           </Button>
-          <Text className="text-muted-foreground text-[10px] text-center mt-4 px-6 leading-4">
-            Subscription auto-renews. Cancel anytime in App Store settings. By continuing, you agree to our Terms and Privacy Policy.
+          <Text style={styles.termsText}>
+            7 days free, then $39.99/year. Cancel anytime.
           </Text>
         </View>
+
       </SafeAreaView>
     </View>
   );
 }
 
-// Sub-component for clean code
-function FeatureRow({ icon, title, subtitle }: { icon: any, title: string, subtitle: string }) {
+// --- SUB-COMPONENTS ---
+
+function FeatureRow({ icon, title, subtitle }: { icon: React.ReactNode, title: string, subtitle: string }) {
   return (
-    <View className="flex-row items-start gap-4">
-      <View className="mt-1 text-primary">{icon}</View>
-      <View>
-        <Text className="text-foreground font-bold text-base leading-5">{title}</Text>
-        <Text className="text-muted-foreground text-sm leading-5 mt-0.5">{subtitle}</Text>
+    <View style={styles.featureRow}>
+      <View style={styles.featureIconBox}>
+        {icon}
+      </View>
+      <View style={styles.featureTextBox}>
+        <Text style={styles.featureTitle}>{title}</Text>
+        <Text style={styles.featureSubtitle}>{subtitle}</Text>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+// --- STYLES ---
 
-  }
-})
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  safeArea: { flex: 1 },
+  
+  // Header
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    zIndex: 10,
+  },
+  proBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(13, 148, 136, 0.1)', // Teal-tinted
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(13, 148, 136, 0.3)',
+  },
+  proBadgeText: {
+    color: '#2dd4bf', // Teal-400
+    fontSize: 10,
+    fontFamily: 'Sans-Bold',
+    letterSpacing: 1,
+  },
+  closeButtonContainer: {
+    // Positioning handled by layout
+  },
+  closeButton: {
+    padding: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 20,
+  },
+
+  // Content
+  scrollContent: {
+    paddingBottom: 40,
+  },
+  heroSection: {
+    alignItems: 'center',
+    marginTop: 30,
+    marginBottom: 40,
+    paddingHorizontal: 24,
+  },
+  heroIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    marginBottom: 24,
+    shadowColor: '#2dd4bf',
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+  },
+  heroTitle: {
+    color: '#FFF',
+    fontSize: 32,
+    fontFamily: 'Serif-Regular', // Consistent with titles
+    textAlign: 'center',
+    lineHeight: 40,
+    marginBottom: 12,
+  },
+  heroSubtitle: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 16,
+    textAlign: 'center',
+    fontFamily: 'Sans-Regular',
+    maxWidth: '80%',
+  },
+
+  // Features
+  featuresContainer: {
+    paddingHorizontal: 24,
+    gap: 20,
+    marginBottom: 40,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  featureIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: 'rgba(94, 234, 212, 0.1)', // Teal tint
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  featureTextBox: {
+    flex: 1,
+  },
+  featureTitle: {
+    color: '#FFF',
+    fontSize: 16,
+    fontFamily: 'Sans-Bold',
+    marginBottom: 2,
+  },
+  featureSubtitle: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 14,
+    fontFamily: 'Sans-Regular',
+  },
+
+  // Plans
+  plansContainer: {
+    paddingHorizontal: 24,
+    gap: 12,
+  },
+  planCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    position: 'relative', // For active border
+    overflow: 'hidden',
+  },
+  planCardSelected: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderColor: '#FFF',
+  },
+  activeBorder: {
+    ...StyleSheet.absoluteFillObject,
+    borderWidth: 2,
+    borderColor: '#FFF',
+    borderRadius: 20,
+    opacity: 0.5,
+  },
+  radioCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  radioCircleSelected: {
+    borderColor: '#FFF',
+    backgroundColor: '#FFF',
+  },
+  radioInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#020617', // Dark dot
+  },
+  planContent: {
+    flex: 1,
+  },
+  planName: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 16,
+    fontFamily: 'Sans-Bold',
+  },
+  textSelected: {
+    color: '#FFF',
+  },
+  planDesc: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 13,
+    marginTop: 2,
+    fontFamily: 'Sans-Regular',
+  },
+  planRight: {
+    alignItems: 'flex-end',
+  },
+  planPrice: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 18,
+    fontFamily: 'Sans-Bold',
+  },
+  tagBadge: {
+    backgroundColor: '#0d9488', // Teal badge
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 4,
+  },
+  tagText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontFamily: 'Sans-Bold',
+  },
+
+  // Trust & Footer
+  trustContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 24,
+    gap: 8,
+    opacity: 0.6,
+  },
+  trustText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontFamily: 'Sans-Bold',
+    letterSpacing: 0.5,
+  },
+  dotSeparator: {
+    color: '#FFF',
+    fontSize: 10,
+  },
+  restoreText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontFamily: 'Sans-Bold',
+    textDecorationLine: 'underline',
+  },
+  footer: {
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+    paddingTop: 10,
+  },
+  ctaButton: {
+    backgroundColor: '#FFF', // White button for high contrast
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    shadowColor: '#FFF',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  ctaText: {
+    color: '#020617', // Dark text
+    fontSize: 17,
+    fontFamily: 'Sans-Bold',
+  },
+  termsText: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 12,
+    fontFamily: 'Sans-Regular',
+  },
+});

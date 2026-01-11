@@ -36,6 +36,7 @@ function RootNavigator() {
     <Stack>
       <Stack.Protected guard={isLoggedIn}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name= "(paywall)" options={{headerShown: false}}/>
       </Stack.Protected>
       <Stack.Protected guard={!isLoggedIn}>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />

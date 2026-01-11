@@ -48,7 +48,7 @@ export default function AppleSignInButton() {
     <AppleAuthentication.AppleAuthenticationButton
       buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
       buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-      cornerRadius={30} // Matches your pill-shaped theme
+      cornerRadius={12} // Matches your pill-shaped theme
       style={styles.button}
       onPress={onAppleButtonPress}
     />

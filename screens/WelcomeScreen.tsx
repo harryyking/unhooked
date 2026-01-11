@@ -24,8 +24,7 @@ const WelcomeScreen = () => {
       <SafeAreaView style={styles.safeArea}>
         {/* --- ZONE 1: IDENTITY --- */}
         <View style={styles.header}>
-          <Text style={styles.brandText}>Unhooked</Text>
-          <View style={styles.divider} />
+          <Text variant={'h3'}>Unhooked</Text>
         </View>
 
         {/* --- ZONE 2: INVITATION --- */}
@@ -75,7 +74,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   brandText: {
-    fontSize: 24,
+    fontSize: 20,
     fontFamily: 'Sans-SemiBold',
     color: '#FFFFFF',
     opacity: 0.95,
@@ -91,7 +90,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   title: {
-    fontSize: 42,
+    fontSize: 32,
     lineHeight: 52,
     color: '#FFFFFF',
     fontFamily: 'Sans-Bold',

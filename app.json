@@ -5,14 +5,14 @@
     "version": "1.0.3",
     "runtimeVersion": "1.0.3",
     "orientation": "portrait",
-    "icon": "./assets/images/unhooked-ios-icon-3.png",
+    "icon": "./assets/images/unhooked-icon.png",
     "scheme": "unhooked",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/SplashScreen.png",
-      "resizeMode": "cover",
-      "backgroundColor": "#020617"
+      "image": "./assets/images/unhooked-splash2.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#f9f9f9"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -32,7 +32,7 @@
     "android": {
       "edgeToEdgeEnabled": true,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/unhooked-icon.png",
         "backgroundColor": "#ffffff"
       },
       "package": "com.harryking.unhooked"

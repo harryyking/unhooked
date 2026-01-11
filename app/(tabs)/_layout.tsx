@@ -1,101 +1,86 @@
-import React, { useEffect } from 'react';
-import { Platform, View, Pressable } from 'react-native';
+import { Platform, View, StyleSheet, Dimensions } from 'react-native';
 import { Tabs } from 'expo-router';
-import { Home, Users, Settings, ShieldCheck } from 'lucide-react-native';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withSpring, 
-  interpolate,
-  Extrapolation
-} from 'react-native-reanimated';
+import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
-import { useTheme } from '@react-navigation/native';
-import { cn } from '@/lib/utils'; // Utility for tailwind classes
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const { width } = Dimensions.get('window');
 
 /**
- * Reusable Animated Icon
+ * Animated Icon Component
+ * Scales up and glows when focused
  */
 function TabBarIcon({ 
-  Icon, 
+  name, 
   focused, 
   color 
 }: { 
-  Icon: any; 
+  name: keyof typeof Ionicons.glyphMap; 
   focused: boolean; 
   color: string; 
 }) {
-  const scale = useSharedValue(focused ? 1 : 0);
-
-  useEffect(() => {
-    scale.value = withSpring(focused ? 1 : 0, {
-      mass: 1,
-      damping: 15,
-      stiffness: 120,
-    });
-  }, [focused]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: interpolate(scale.value, [0, 1], [1, 1.2], Extrapolation.CLAMP) }],
-  }));
 
   return (
-    <Animated.View style={animatedStyle} className="items-center justify-center">
-      <Icon 
-        size={24} 
-        color={color} 
-        strokeWidth={focused ? 2.5 : 2} 
-      />
-      {focused && (
-        <Animated.View 
-          className="absolute -bottom-2 w-1 h-1 rounded-full bg-primary"
-          style={{ opacity: scale.value }}
+    <View style={styles.iconContainer}>
+      
+        <Ionicons 
+          name={focused ? name : `${name}-outline` as any} 
+          size={24} 
+          color={color} 
         />
-      )}
-    </Animated.View>
+
+    </View>
   );
 }
 
 export default function TabsLayout() {
-  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+
+  // Common options for all screens
+  const screenOptions = {
+    headerShown: false,
+    tabBarShowLabel: true, // Cleaner look without labels
+    tabBarActiveTintColor: '#6366f1', // Indigo-500
+    tabBarInactiveTintColor: '#94a3b8', // Slate-400
+    tabBarStyle: {
+      position: 'absolute',
+      // bottom: Platform.OS === 'ios' ? 25 : 20,
+      left: 20,
+      right: 20,
+      height: 80,
+      borderRadius: 35,
+      backgroundColor: Platform.OS === 'ios' ? 'transparent' : '#0f172a', // Fallback for Android
+      borderTopWidth: 0,
+      elevation: 0, // Remove Android shadow
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.25,
+      shadowRadius: 10,
+    } as const,
+    tabBarBackground: () => (
+      Platform.OS === 'ios' ? (
+        <BlurView 
+          intensity={40} 
+          tint="dark" 
+          style={StyleSheet.absoluteFill} 
+        />
+      ) : null
+    ),
+  };
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.text + '80', // 50% opacity
-        headerShown: false,
-        tabBarShowLabel: true,
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '500',
-          marginBottom: Platform.OS === 'ios' ? 0 : 10,
-        },
-        tabBarStyle: {
-          position: 'absolute',
-          borderTopWidth: 0,
-          backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.card,
-          elevation: 0,
-          height: Platform.OS === 'ios' ? 88 : 68,
-        },
-        tabBarBackground: () => (
-          Platform.OS === 'ios' ? (
-            <BlurView 
-              intensity={80} 
-              tint="dark" 
-              className="absolute inset-0"
-            />
-          ) : null
-        ),
-      }}
-    >
+    <Tabs screenOptions={screenOptions}>
       <Tabs.Screen
         name="home"
         options={{
           title: 'Home',
-          tabBarIcon: (p) => <TabBarIcon Icon={Home} {...p} />,
-          tabBarButton: (props) => <HapticTabButton {...props} />,
+          tabBarIcon: ({ focused, color }) => (
+            <TabBarIcon name="home" focused={focused} color={color} />
+          ),
+        }}
+        listeners={{
+          tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
         }}
       />
 
@@ -103,17 +88,25 @@ export default function TabsLayout() {
         name="allies"
         options={{
           title: 'Allies',
-          tabBarIcon: (p) => <TabBarIcon Icon={Users} {...p} />,
-          tabBarButton: (props) => <HapticTabButton {...props} />,
+          tabBarIcon: ({ focused, color }) => (
+            <TabBarIcon name="people" focused={focused} color={color} />
+          ),
+        }}
+        listeners={{
+          tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
         }}
       />
 
       <Tabs.Screen
         name="check-in"
         options={{
-          title: 'Check In',
-          tabBarIcon: (p) => <TabBarIcon Icon={ShieldCheck} {...p} />,
-          tabBarButton: (props) => <HapticTabButton {...props} />,
+          title: 'Learn',
+          tabBarIcon: ({ focused, color }) => (
+            <TabBarIcon name="book" focused={focused} color={color} />
+          ),
+        }}
+        listeners={{
+          tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
         }}
       />
 
@@ -121,26 +114,35 @@ export default function TabsLayout() {
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: (p) => <TabBarIcon Icon={Settings} {...p} />,
-          tabBarButton: (props) => <HapticTabButton {...props} />,
+          tabBarIcon: ({ focused, color }) => (
+            <TabBarIcon name="settings" focused={focused} color={color} />
+          ),
+        }}
+        listeners={{
+          tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
         }}
       />
     </Tabs>
   );
 }
 
-/**
- * Wraps the Tab Button to provide Haptics and NativeWind styling
- */
-function HapticTabButton(props: any) {
-  return (
-    <Pressable
-      {...props}
-      onPress={(e) => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        props.onPress?.(e);
-      }}
-      className="flex-1 items-center justify-center active:opacity-70"
-    />
-  );
-}
+const styles = StyleSheet.create({
+  iconContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 50,
+    width: 50,
+  },
+  activeDot: {
+    position: 'absolute',
+    bottom: -8,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#6366f1', // Indigo glow
+    shadowColor: '#6366f1',
+    shadowOpacity: 0.8,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 0 },
+  },
+});

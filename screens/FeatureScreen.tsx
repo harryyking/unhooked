@@ -1,108 +1,150 @@
-import React from 'react';
-import { StyleSheet, View, ScrollView, Dimensions, TouchableOpacity } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { 
+  StyleSheet, View, FlatList, Dimensions, Animated, 
+  Image, ViewToken 
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { 
-  ShieldAlert, 
-  Flame, 
-  Leaf, 
-  BookOpen, 
-  MessageCircle, 
-  ArrowRight 
-} from 'lucide-react-native';
+import { ShieldAlert, BookOpen, Leaf, MessageCircle, ArrowRight, LucideIcon, LucideProps } from 'lucide-react-native';
 
 // --- UI Components ---
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
-const FEATURES = [
+type FeatureProps ={
+  id: string;
+  title: string;
+  desc : string;
+  icon: React.ReactNode
+  illustration ?: any;
+  color: string
+}
+
+const FEATURES: FeatureProps[]= [
   {
     id: 'exit',
     title: 'The Emergency Exit',
     desc: 'One tap to kill an urge. Get immediate grounding exercises and scripture when you need it most.',
-    icon: <ShieldAlert size={28} color="#FFF" />,
-    color: 'rgba(239, 68, 68, 0.2)', // Red tint
+    icon: <ShieldAlert size={32} color="#FFF" />,
+    // illustration: require('@/assets/images/Onboarding(Solution and App Features).png'), // Your top image
+    color: '#EF4444',
   },
   {
     id: 'liturgy',
     title: 'Daily Liturgy',
     desc: 'Morning and evening rhythms designed to rewire your neural pathways through prayer and science.',
-    icon: <BookOpen size={28} color="#FFF" />,
-    color: 'rgba(255, 255, 255, 0.1)',
+    icon: <BookOpen size={32} color="#FFF" />,
+    // illustration: require('@/assets/images/Learn.png'),
+    color: '#0D9488',
   },
   {
     id: 'tree',
     title: 'The Life Tree',
     desc: 'Visualize your progress. As you stay clean, your digital tree grows from a seed to a flourishing oak.',
-    icon: <Leaf size={28} color="#FFF" />,
-    color: 'rgba(16, 185, 129, 0.2)', // Green tint
+    icon: <Leaf size={32} color="#FFF" />,
+    // illustration: require('@/assets/images/Home.png'),
+    color: '#10B981',
   },
   {
     id: 'community',
     title: 'Anonymous Circles',
     desc: 'Heal in the light. Connect with others on the same journey without ever revealing your identity.',
-    icon: <MessageCircle size={28} color="#FFF" />,
-    color: 'rgba(255, 255, 255, 0.1)',
+    icon: <MessageCircle size={32} color="#FFF" />,
+    
+    color: '#6366F1',
   }
 ];
 
 const FeatureScreen = () => {
   const router = useRouter();
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const flatListRef = useRef<FlatList>(null);
+
+  // Track the current slide index
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    if (viewableItems.length > 0) {
+      setCurrentIndex(viewableItems[0].index ?? 0);
+    }
+  }).current;
+
+  const renderItem = ({ item }: { item: typeof FEATURES[0] }) => (
+    <View style={styles.slide}>
+      {/* Top Illustration Section */}
+      <View style={styles.imageContainer}>
+        <Image source={item.illustration} style={styles.image} resizeMode="contain" />
+      </View>
+
+      {/* Bottom Content Section */}
+      <View style={styles.contentContainer}>
+        <View style={[styles.iconBadge, { backgroundColor: item.color + '20' }]}>
+          {item.icon}
+        </View>
+        <Text variant={'h2'}>{item.title}</Text>
+        <Text style={styles.description}>{item.desc}</Text>
+      </View>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#020617', '#082f49', '#0d9488']}
-        locations={[0, 0.5, 1]}
+        colors={['#020617', '#082f49']}
         style={StyleSheet.absoluteFillObject}
       />
 
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView 
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-        >
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.tagline}>YOUR ARSENAL</Text>
-            <Text style={styles.title}>Built for Victory.</Text>
-            <Text style={styles.subtitle}>
-              We’ve combined neuro-science with spiritual disciplines to give you everything you need to break free.
-            </Text>
+        <FlatList
+          ref={flatListRef}
+          data={FEATURES}
+          renderItem={renderItem}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+            { useNativeDriver: false }
+          )}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={{ viewAreaCoveragePercentThreshold: 50 }}
+          keyExtractor={(item) => item.id}
+        />
+
+        {/* Pagination & Footer */}
+        <View style={styles.footer}>
+          <View style={styles.paginationContainer}>
+            {FEATURES.map((_, i) => {
+              const dotWidth = scrollX.interpolate({
+                inputRange: [(i - 1) * width, i * width, (i + 1) * width],
+                outputRange: [10, 24, 10],
+                extrapolate: 'clamp',
+              });
+              const opacity = scrollX.interpolate({
+                inputRange: [(i - 1) * width, i * width, (i + 1) * width],
+                outputRange: [0.3, 1, 0.3],
+                extrapolate: 'clamp',
+              });
+              return <Animated.View key={i} style={[styles.dot, { width: dotWidth, opacity }]} />;
+            })}
           </View>
 
-          {/* Feature Grid/List */}
-          <View style={styles.featureList}>
-            {FEATURES.map((feature) => (
-              <View key={feature.id} style={styles.featureCard}>
-                <View style={[styles.iconBox, { backgroundColor: feature.color }]}>
-                  {feature.icon}
-                </View>
-                <View style={styles.textContainer}>
-                  <Text style={styles.featureTitle}>{feature.title}</Text>
-                  <Text style={styles.featureDesc}>{feature.desc}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-
-          {/* Final Call to Action */}
-          <View style={styles.footer}>
-            <Button 
-              onPress={() => router.replace('/(auth)/login')}
-              style={styles.mainButton}
-            >
-              <View style={styles.buttonInner}>
-                <Text style={styles.buttonLabel}>Enter The Sanctuary</Text>
-                <ArrowRight size={20} color="#000" />
-              </View>
-            </Button>
-            <Text style={styles.privacyNote}>No subscription required to start.</Text>
-          </View>
-        </ScrollView>
+          <Button 
+            onPress={() => currentIndex === FEATURES.length - 1 
+              ? router.replace('/(auth)/login') 
+              : flatListRef.current?.scrollToIndex({ index: currentIndex + 1 })}
+            style={styles.mainButton}
+          >
+            <View style={styles.buttonInner}>
+              <Text style={styles.buttonLabel}>
+                {currentIndex === FEATURES.length - 1 ? "Enter The Sanctuary" : "Next"}
+              </Text>
+              <ArrowRight size={20} color="#000" />
+            </View>
+          </Button>
+        </View>
       </SafeAreaView>
     </View>
   );
@@ -111,83 +153,66 @@ const FeatureScreen = () => {
 export default FeatureScreen;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  container: { flex: 1 },
+  safeArea: { flex: 1 },
+  slide: { width, flex: 1 },
+  imageContainer: {
+    flex: 0.6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
-  safeArea: {
-    flex: 1,
+  image: { width: '100%', height: '80%' },
+  contentContainer: {
+    flex: 0.4,
+    paddingHorizontal: 40,
+    alignItems: 'center',
   },
-  scrollContent: {
-    paddingHorizontal: 28,
-    paddingTop: 40,
-    paddingBottom: 60,
-  },
-  header: {
-    marginBottom: 40,
-  },
-  tagline: {
-    color: 'rgba(255, 255, 255, 0.5)',
-    fontFamily: 'Sans-Bold',
-    fontSize: 10,
-    letterSpacing: 4,
-    marginBottom: 8,
+  iconBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
   },
   title: {
     color: '#FFF',
-    fontSize: 36,
-    fontFamily: 'Serif-Regular',
-    marginBottom: 16,
+    fontSize: 28,
+    fontFamily: 'Serif-Bold',
+    textAlign: 'center',
+    marginBottom: 12,
   },
-  subtitle: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 17,
-    lineHeight: 26,
-    fontFamily: 'Sans-Regular',
-  },
-  featureList: {
-    gap: 20,
-  },
-  featureCard: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderRadius: 24,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    alignItems: 'flex-start',
-  },
-  iconBox: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  textContainer: {
-    flex: 1,
-  },
-  featureTitle: {
-    color: '#FFF',
-    fontSize: 18,
-    fontFamily: 'Sans-SemiBold',
-    marginBottom: 6,
-  },
-  featureDesc: {
-    color: 'rgba(255, 255, 255, 0.5)',
-    fontSize: 14,
-    lineHeight: 20,
+  description: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 24,
     fontFamily: 'Sans-Regular',
   },
   footer: {
-    marginTop: 60,
+    paddingHorizontal: 40,
+    paddingBottom: 40,
     alignItems: 'center',
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 20,
+  },
+  dot: {
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#0D9488',
   },
   mainButton: {
     backgroundColor: '#FFF',
     width: '100%',
-    height: 64,
-    borderRadius: 32,
+    height: 60,
+    borderRadius: 30,
     justifyContent: 'center',
   },
   buttonInner: {
@@ -196,15 +221,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 12,
   },
-  buttonLabel: {
-    color: '#000',
-    fontSize: 18,
-    fontFamily: 'Sans-SemiBold',
-  },
-  privacyNote: {
-    color: 'rgba(255, 255, 255, 0.3)',
-    fontSize: 12,
-    marginTop: 20,
-    fontFamily: 'Sans-Regular',
-  }
+  buttonLabel: { color: '#000', fontSize: 18, fontFamily: 'Sans-Bold' },
 });

@@ -1,133 +1,73 @@
 import React, { useState } from 'react';
-import { View, Platform, ActivityIndicator, Image, Alert, StyleSheet, Dimensions } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import * as AppleAuthentication from 'expo-apple-authentication';
-import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { LinearGradient } from 'expo-linear-gradient';
-import { supabase } from '@/lib/supabase';
-import { ShieldCheck } from 'lucide-react-native';
-
+import { ShieldCheck, ArrowRight } from 'lucide-react-native';
+  
 // --- UI Components ---
-import { Button } from '@/components/ui/button'; 
 import { Text } from '@/components/ui/text';
 import GoogleSignInButton from '@/components/socialButtons/GoogleSignInButton';
 import AppleSignInButton from '@/components/socialButtons/AppleSignInButton';
 
-const { width } = Dimensions.get('window');
-
-GoogleSignin.configure({
-  scopes: ['email', 'profile'],
-  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-});
+const { width, height } = Dimensions.get('window');
 
 export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const handleAppleLogin = async () => {
-    setLoading(true);
-    try {
-      const credential = await AppleAuthentication.signInAsync({
-        requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
-        ],
-      });
-
-      if (credential.identityToken) {
-        const { error, data } = await supabase.auth.signInWithIdToken({
-          provider: 'apple',
-          token: credential.identityToken,
-        });
-        if (error) throw error;
-        if (data.session) await initializeUserProfile(data.session.user.id);
-      }
-    } catch (e: any) {
-      if (e.code !== 'ERR_CANCELED') {
-        Alert.alert('Error', e.message || 'Apple Sign-In failed');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    try {
-      await GoogleSignin.hasPlayServices();
-      const userInfo = await GoogleSignin.signIn();
-      if (userInfo.data?.idToken) {
-        const { error, data } = await supabase.auth.signInWithIdToken({
-          provider: 'google',
-          token: userInfo.data.idToken,
-        });
-        if (error) throw error;
-        if (data.session) await initializeUserProfile(data.session.user.id);
-      }
-    } catch (error: any) {
-      if (error.code !== statusCodes.SIGN_IN_CANCELLED) {
-        Alert.alert('Error', 'Google Sign-In failed.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const initializeUserProfile = async (userId: string) => {
-    const { data } = await supabase.from('profiles').select('id').eq('id', userId).single();
-    if (!data) {
-      await supabase.from('profiles').insert({
-        id: userId,
-        life_tree_stage: 1,
-        current_streak: 0,
-        xp_points: 0
-      });
-    }
-    router.replace('/(tabs)/home');
-  };
-
   return (
     <View style={styles.container}>
-      {/* Dynamic Background Gradient */}
+      {/* 1. Immersive Deep Sea Background */}
       <LinearGradient
         colors={['#020617', '#082f49', '#0d9488']}
-        locations={[0, 0.5, 1]}
-        style={StyleSheet.absoluteFillObject}
+        locations={[0, 0.4, 1]}
+        style={StyleSheet.absoluteFillObject} 
       />
+    
 
       <SafeAreaView style={styles.safeArea}>
-        {/* HEADER SECTION */}
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <View style={styles.glowEffect} />
-            <ShieldCheck size={48} color="#FFF" strokeWidth={1.5} />
-          </View>
+        {/* HEADER SECTION: Branding */}
+        <View className='flex-1 justify-center items-center'>
+      
           
-          <Text style={styles.brandName}>UNHOOKED</Text>
-          <Text style={styles.tagline}>Break free. Stand firm. Grow roots.</Text>
+          <Text variant={'h2'}>Unhooked</Text>
+          <View style={styles.taglineWrapper}>
+            <Text style={styles.tagline}>Break free. Stand firm.</Text>
+            <Text style={[styles.tagline, { color: '#5eead4' }]}> Grow roots.</Text>
+          </View>
         </View>
 
-        {/* AUTH BUTTONS SECTION */}
-        <View style={styles.authContainer}>
+        {/* AUTH SECTION: Social Buttons */}
+        <View style={styles.authSection}>
           {loading ? (
-            <View style={styles.loadingWrapper}>
-              <ActivityIndicator size="large" color="#FFF" />
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#5eead4" />
             </View>
           ) : (
-            <View style={styles.buttonStack}>
-            <AppleSignInButton/>
+            <View style={styles.buttonContainer}>
+              <Text style={styles.authLabel}>Begin your journey</Text>
+              
+              <View style={styles.buttonStack}>
+                {/* Wrap buttons to ensure consistent sizing */}
+                <View style={styles.buttonWrapper}>
+                   <AppleSignInButton />
+                </View>
+                
+                <View style={styles.buttonWrapper}>
+                   <GoogleSignInButton />
+                </View>
+              </View>
 
-            <GoogleSignInButton/>
             </View>
           )}
 
-          {/* LEGAL TEXT */}
-          <View style={styles.legalContainer}>
+          {/* LEGAL FOOTER */}
+          <View style={styles.footer}>
             <Text style={styles.legalText}>
-              By continuing, you agree to our{' '}
+              Your privacy is our priority. By continuing, you agree to our{' '}
               <Text style={styles.legalLink}>Terms</Text> and{' '}
-              <Text style={styles.legalLink}>Privacy Policy</Text>.
+              <Text style={styles.legalLink}>Privacy</Text>.
             </Text>
           </View>
         </View>
@@ -138,76 +78,122 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  safeArea: { flex: 1, paddingHorizontal: 32 },
-  header: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 40 },
-  logoContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+  safeArea: { flex: 1 },
+  
+  // Visual Effects
+  ambientGlow: {
+    position: 'absolute',
+    top: height * 0.1,
+    left: width * 0.2,
+    width: width * 0.6,
+    height: width * 0.6,
+    backgroundColor: '#0d9488',
+    borderRadius: width * 0.3,
+    opacity: 0.15,
+  },
+
+  // Header Styles
+  header: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
   },
-  glowEffect: {
-    position: 'absolute',
-    width: 60,
-    height: 60,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 30,
-    filter: 'blur(20px)',
+  logoWrapper: {
+    marginBottom: 32,
+    // Outer shadow for depth
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.3,
+    shadowRadius: 30,
+  },
+  logoGlass: {
+    width: 110,
+    height: 110,
+    borderRadius: 35, // More organic "squircle"
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   brandName: {
     color: '#FFF',
     fontSize: 32,
-    fontFamily: 'Sans-Bold',
-    letterSpacing: 6,
-    textAlign: 'center',
+    fontFamily: 'Serif-Bold',
+
+  },
+  taglineWrapper: {
+    flexDirection: 'row',
+    marginTop: 8,
   },
   tagline: {
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: 'rgba(255, 255, 255, 0.5)',
     fontSize: 16,
-    fontFamily: 'Serif-Regular',
-    marginTop: 12,
-    textAlign: 'center',
+    fontFamily: 'Sans-Regular',
   },
-  authContainer: { paddingBottom: 40 },
-  buttonStack: { gap: 16 },
-  appleButton: { width: '100%', height: 44 },
-  googleButton: {
-    height: 64,
-    backgroundColor: '#FFF',
+
+  // Auth Section
+  authSection: {
+    paddingHorizontal: 32,
+    paddingBottom: 40,
+  },
+  authLabel: {
+    color: 'rgba(255, 255, 255, 0.4)',
+    fontSize: 12,
+    fontFamily: 'Sans-Bold',
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 2,
+    marginBottom: 24,
+  },
+  buttonContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
     borderRadius: 32,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  buttonStack: {
+    gap: 16,
+  },
+  buttonWrapper: {
+    width: '100%',
+    height: 56, // Fixed height for both buttons
+    overflow: 'hidden',
+  },
+  loadingContainer: {
+    height: 180,
+    justifyContent: 'center',
+  },
+
+  // Guest Access
+  guestLink: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 0,
+    marginTop: 24,
+    gap: 8,
   },
-  googleButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  googleIcon: { width: 22, height: 22 },
-  googleButtonText: {
-    color: '#000',
-    fontSize: 18,
+  guestText: {
+    color: 'rgba(255, 255, 255, 0.4)',
+    fontSize: 14,
     fontFamily: 'Sans-Medium',
   },
-  loadingWrapper: { height: 144, justifyContent: 'center' },
-  legalContainer: { marginTop: 32, paddingHorizontal: 20 },
+
+  // Footer
+  footer: {
+    marginTop: 32,
+    paddingHorizontal: 10,
+  },
   legalText: {
-    color: 'rgba(255, 255, 255, 0.4)',
+    color: 'rgba(255, 255, 255, 0.3)',
     fontSize: 12,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 18,
     fontFamily: 'Sans-Regular',
   },
   legalLink: {
-    color: '#FFF',
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 12,
     textDecorationLine: 'underline',
-    fontFamily: 'Sans-Medium',
   },
 });

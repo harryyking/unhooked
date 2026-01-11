@@ -1,95 +1,331 @@
-import React, { useState } from 'react';
-import { View, FlatList, StyleSheet, TouchableOpacity, Image, Dimensions } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  Dimensions,
+  TextInput,
+  Modal, 
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  FlatList,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { MessageCircle, Heart, Plus, MoreHorizontal, User, Circle } from 'lucide-react-native';
-
-// --- UI Components ---
+import { MessageCircle, Heart, Plus, MoreHorizontal } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
+import { supabase } from '@/lib/supabase';
+import { LegendList } from "@legendapp/list";
 
 const { width } = Dimensions.get('window');
 
-// 1. Define distinct types for your two data structures
 type ForumPost = {
   id: string;
-  user: string;
-  avatar: string;
-  time: string;
   title: string;
   body: string;
-  likes: number;
-  comments: number;
-  liked: boolean;
+  created_at: string;
+  user_id: string;
+  display_name: string | null;
+  likes_count: number;
+  comments_count: number;
+  liked_by_me: boolean;
+};
+
+type Comment = {
+  id: string;
+  body: string;
+  created_at: string;
+  user_id: string;
+  profiles: { display_name: string | null };
 };
 
 type Friend = {
   id: string;
   name: string;
-  status: string;
   streak: number;
+  online: boolean;
+  lastSeen: string | null;
 };
 
-// 2. Create a Union Type for the FlatList
-type CommunityItem = ForumPost | Friend;
-
-
-// --- Mock Data: Forum ---
-const FORUM_POSTS: ForumPost[] = [
-  {
-    id: '1',
-    user: 'David_Walker',
-    avatar: 'https://i.pravatar.cc/150?u=1',
-    time: '2 hrs ago',
-    title: '37 days! God is so good.',
-    body: 'I honestly didn’t think I could make it past the first week. The "Emergency Exit" button saved me twice yesterday.',
-    likes: 24,
-    comments: 5,
-    liked: true,
-  },
-  {
-    id: '2',
-    user: 'SarahFaith',
-    avatar: 'https://i.pravatar.cc/150?u=2',
-    time: '4 hrs ago',
-    title: 'Need prayers for tonight.',
-    body: 'Evenings are my hardest time. Feeling lonely but trying to stay in the word.',
-    likes: 12,
-    comments: 8,
-    liked: false,
-  },
-  {
-    id: '3',
-    user: 'Mike_Recovering',
-    avatar: 'https://i.pravatar.cc/150?u=3',
-    time: '1 day ago',
-    title: 'The brain fog is finally lifting!',
-    body: 'Just wanted to share a win. I woke up with actual energy today. Keep going everyone.',
-    likes: 45,
-    comments: 12,
-    liked: false,
-  },
-];
-
-// --- Mock Data: Friends ---
-const FRIENDS = [
-  { id: 'f1', name: 'John Doe', status: 'online', streak: 12 },
-  { id: 'f2', name: 'Pastor Mike', status: 'offline', streak: 450 },
-  { id: 'f3', name: 'Accountability Group A', status: 'online', streak: 5 },
-];
+const formatTime = (dateString: string | null): string => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+};
 
 export default function AlliesScreen() {
   const [activeTab, setActiveTab] = useState<'forum' | 'friends'>('forum');
+  const [posts, setPosts] = useState<ForumPost[]>([]);
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [user, setUser] = useState<any>(null);
 
-  // --- Render Item: Forum Post ---
-  const renderPost = ({ item }: { item: typeof FORUM_POSTS[0] }) => (
+  // Create post modal
+  const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+
+  // Comments modal
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [newComment, setNewComment] = useState('');
+
+  const presenceRef = useRef<any>(null);
+  const alliesSubscriptionRef = useRef<any>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+
+    const forumChannel = supabase.channel('forum-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'forum_posts' }, () => fetchPosts())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'forum_post_likes' }, () => fetchPosts())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'forum_comments' }, () => fetchPosts())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(forumChannel);
+    };
+  }, []);
+
+  const fetchPosts = async () => {
+    const { data, error } = await supabase
+      .from('forum_posts_view')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      Alert.alert('Error loading posts', error.message);
+    } else {
+      setPosts(data || []);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'forum') {
+      fetchPosts();
+    }
+  }, [activeTab]);
+
+  const fetchFriends = async () => {
+    if (!user) {
+      setFriends([]);
+      return;
+    }
+
+    const { data: alliesData, error } = await supabase
+      .from('allies')
+      .select('user_id, ally_id, status')
+      .or(`user_id.eq.${user.id},ally_id.eq.${user.id}`);
+
+    if (error) {
+      Alert.alert('Error loading allies', error.message);
+      setFriends([]);
+      return;
+    }
+
+    const friendIds = new Set<string>();
+    alliesData.forEach(row => {
+      if (row.status !== 'accepted') return;
+
+      const friendId = row.user_id === user.id ? row.ally_id : row.user_id;
+      if (friendId && friendId !== user.id) {
+        friendIds.add(friendId);
+      }
+    });
+
+    if (friendIds.size === 0) {
+      setFriends([]);
+      return;
+    }
+
+    const { data: profilesData } = await supabase
+      .from('profiles')
+      .select('id, display_name, current_streak')
+      .in('id', Array.from(friendIds));
+
+    const { data: checkInsData } = await supabase
+      .from('check_ins')
+      .select('user_id, created_at')
+      .in('user_id', Array.from(friendIds))
+      .order('created_at', { ascending: false });
+
+    const lastSeenMap = new Map<string, string>();
+    checkInsData?.forEach(ci => {
+      if (ci.user_id && !lastSeenMap.has(ci.user_id)) {
+        lastSeenMap.set(ci.user_id, ci.created_at!);
+      }
+    });
+
+    const friendsList: Friend[] = (profilesData || []).map(p => ({
+      id: p.id,
+      name: p.display_name || 'Anonymous',
+      streak: p.current_streak ?? 0,
+      online: false,
+      lastSeen: lastSeenMap.get(p.id) ?? null,
+    }));
+
+    friendsList.sort((a, b) => {
+      if (a.online && !b.online) return -1;
+      if (!a.online && b.online) return 1;
+      if (a.lastSeen && b.lastSeen) {
+        return new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime();
+      }
+      return b.streak - a.streak || a.name.localeCompare(b.name);
+    });
+
+    setFriends(friendsList);
+  };
+
+  useEffect(() => {
+    if (activeTab === 'friends' && user) {
+      fetchFriends();
+
+      const alliesChannel = supabase.channel('allies-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'allies' }, fetchFriends)
+        .subscribe();
+      alliesSubscriptionRef.current = alliesChannel;
+
+      const presenceChannel = supabase.channel('allies-presence');
+      presenceChannel
+        .on('presence', { event: 'sync' }, () => {
+          const state = presenceChannel.presenceState<{ user_id: string }>();
+          const onlineIds = new Set<string>();
+          Object.values(state).flat().forEach(presence => {
+            if (presence.user_id) onlineIds.add(presence.user_id);
+          });
+          setFriends(prev =>
+            prev.map(f => ({
+              ...f,
+              online: onlineIds.has(f.id),
+            }))
+          );
+        })
+        .subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+            await presenceChannel.track({ user_id: user.id });
+          }
+        });
+
+      presenceRef.current = presenceChannel;
+    } else {
+      setFriends([]);
+    }
+
+    return () => {
+      if (alliesSubscriptionRef.current) {
+        supabase.removeChannel(alliesSubscriptionRef.current);
+        alliesSubscriptionRef.current = null;
+      }
+      if (presenceRef.current) {
+        presenceRef.current.untrack();
+        supabase.removeChannel(presenceRef.current);
+        presenceRef.current = null;
+      }
+    };
+  }, [activeTab, user]);
+
+  const toggleLike = async (postId: string, currentlyLiked: boolean) => {
+    if (!user) return;
+
+    let error;
+    if (currentlyLiked) {
+      ({ error } = await supabase
+        .from('forum_post_likes')
+        .delete()
+        .eq('post_id', postId)
+        .eq('user_id', user.id));
+    } else {
+      ({ error } = await supabase
+        .from('forum_post_likes')
+        .insert({ post_id: postId, user_id: user.id }));
+    }
+
+    if (error) {
+      Alert.alert('Error', error.message);
+    } else {
+      fetchPosts();
+    }
+  };
+
+  const openComments = async (postId: string) => {
+    setSelectedPostId(postId);
+    const { data, error } = await supabase
+      .from('forum_comments')
+      .select('id, body, created_at, user_id, profiles!inner(display_name)')
+      .eq('post_id', postId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      Alert.alert('Error loading comments', error.message);
+    } else {
+      setComments(data || []);
+    }
+    setNewComment('');
+  };
+
+  const addComment = async () => {
+    if (!newComment.trim() || !selectedPostId || !user) return;
+
+    const { error } = await supabase
+      .from('forum_comments')
+      .insert({
+        post_id: selectedPostId,
+        body: newComment.trim(),
+        user_id: user.id,
+      });
+
+    if (error) {
+      Alert.alert('Error posting comment', error.message);
+    } else {
+      setNewComment('');
+      openComments(selectedPostId);
+      fetchPosts();
+    }
+  };
+
+  const createPost = async () => {
+    if (!title.trim() || !body.trim() || !user) {
+      Alert.alert('Error', 'Title, body, and signed-in user are required');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('forum_posts')
+      .insert({
+        title: title.trim(),
+        body: body.trim(),
+        user_id: user.id,
+      });
+
+    if (error) {
+      Alert.alert('Error creating post', error.message);
+    } else {
+      setIsCreateModalVisible(false);
+      setTitle('');
+      setBody('');
+      fetchPosts();
+    }
+  };
+
+  const renderPost = ({ item }: { item: ForumPost }) => (
     <View style={styles.card}>
-      {/* Header: User Info */}
       <View style={styles.cardHeader}>
         <View style={styles.userInfo}>
-          <Image source={{ uri: item.avatar }} style={styles.avatar} />
+          <Image
+            source={{ uri: `https://i.pravatar.cc/150?u=${item.user_id}` }}
+            style={styles.avatar}
+          />
           <View>
-            <Text style={styles.userName}>{item.user}</Text>
-            <Text style={styles.timestamp}>{item.time}</Text>
+            <Text style={styles.userName}>{item.display_name || 'Anonymous'}</Text>
+            <Text style={styles.timestamp}>{formatTime(item.created_at)}</Text>
           </View>
         </View>
         <TouchableOpacity>
@@ -97,42 +333,47 @@ export default function AlliesScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Content */}
       <Text style={styles.postTitle}>{item.title}</Text>
       <Text style={styles.postBody}>{item.body}</Text>
 
-      {/* Footer: Actions */}
       <View style={styles.cardFooter}>
-        <TouchableOpacity style={styles.actionButton}>
-          <Heart 
-            size={20} 
-            color={item.liked ? '#f43f5e' : 'rgba(255,255,255,0.6)'} 
-            fill={item.liked ? '#f43f5e' : 'transparent'}
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => toggleLike(item.id, item.liked_by_me)}
+        >
+          <Heart
+            size={20}
+            color={item.liked_by_me ? '#f43f5e' : 'rgba(255,255,255,0.6)'}
+            fill={item.liked_by_me ? '#f43f5e' : 'transparent'}
           />
-          <Text style={styles.actionText}>{item.likes}</Text>
+          <Text style={styles.actionText}>{item.likes_count}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => openComments(item.id)}
+        >
           <MessageCircle size={20} color="rgba(255,255,255,0.6)" />
-          <Text style={styles.actionText}>{item.comments}</Text>
+          <Text style={styles.actionText}>{item.comments_count}</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 
-  // --- Render Item: Friend Row ---
-  const renderFriend = ({ item }: { item: typeof FRIENDS[0] }) => (
+  const renderFriend = ({ item }: { item: Friend }) => (
     <TouchableOpacity style={styles.friendCard}>
       <View style={styles.friendInfo}>
-        <View style={styles.friendAvatarPlaceholder}>
-          <User size={20} color="#FFF" />
-          {/* Online Dot */}
-          {item.status === 'online' && <View style={styles.onlineDot} />}
+        <View style={styles.friendAvatarContainer}>
+          <Image
+            source={{ uri: `https://i.pravatar.cc/150?u=${item.id}` }}
+            style={styles.avatar}
+          />
+          {item.online && <View style={styles.onlineDot} />}
         </View>
         <View>
           <Text style={styles.friendName}>{item.name}</Text>
           <Text style={styles.friendStatus}>
-            {item.status === 'online' ? 'Online now' : 'Last seen 2h ago'}
+            {item.online ? 'Online now' : item.lastSeen ? `Last seen ${formatTime(item.lastSeen)}` : ''}
           </Text>
         </View>
       </View>
@@ -144,20 +385,18 @@ export default function AlliesScreen() {
 
   return (
     <View style={styles.container}>
-    
-
       <SafeAreaView style={styles.safeArea}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.screenTitle}>Community</Text>
+          <Text variant="h2">Community</Text>
           <TouchableOpacity>
             <Text style={styles.rulesLink}>Rules</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Custom Tabs */}
+        {/* Tabs */}
         <View style={styles.tabContainer}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.tab, activeTab === 'forum' && styles.activeTab]}
             onPress={() => setActiveTab('forum')}
           >
@@ -165,45 +404,181 @@ export default function AlliesScreen() {
               Forum
             </Text>
           </TouchableOpacity>
-
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.tab, activeTab === 'friends' && styles.activeTab]}
             onPress={() => setActiveTab('friends')}
           >
             <Text style={[styles.tabText, activeTab === 'friends' && styles.activeTabText]}>
               Friends
             </Text>
-          </TouchableOpacity>
+          </TouchableOpacity> 
         </View>
 
-        {/* Content List */}
-        <FlatList<CommunityItem>
-          data={activeTab === 'forum' ? FORUM_POSTS : FRIENDS}
-          renderItem={activeTab === 'forum' ? renderPost : renderFriend}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No friends added yet.</Text>
-            </View>
-          }
-        />
+        {/* Conditional LegendList to fix type issues */}
+        {activeTab === 'forum' ? (
+          <LegendList<ForumPost>
+            data={posts}
+            renderItem={renderPost}
+            keyExtractor={item => item.id}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            recycleItems
+            ListEmptyComponent={() => (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>No posts yet. Be the first!</Text>
+              </View>
+            )}
+          />
+        ) : (
+          <LegendList<Friend>
+            data={friends}
+            renderItem={renderFriend}
+            keyExtractor={item => item.id}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            recycleItems
+            ListEmptyComponent={() => (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>
+                  No allies yet. Connect with partners to see their streaks.
+                </Text>
+              </View>
+            )}
+          />
+        )}
       </SafeAreaView>
 
-      {/* Floating Action Button (FAB) */}
-      <TouchableOpacity style={styles.fab} activeOpacity={0.9}>
-        <Plus size={32} color="#000" />
-      </TouchableOpacity>
+      {/* FAB - only on forum tab */}
+      {activeTab === 'forum' && (
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => setIsCreateModalVisible(true)}
+        >
+          <Plus size={32} color="#000" />
+        </TouchableOpacity>
+      )}
+
+      {/* Create Post Modal */}
+      <Modal visible={isCreateModalVisible} animationType="slide">
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#020617'  }}>
+        <KeyboardAvoidingView
+          style={{ flex: 1}}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+            <View style={{ flex: 1, padding: 24, paddingTop: 20 }}>
+              <Text variant="h2" style={{ color: '#FFF', marginBottom: 24 }}>
+                New Post
+              </Text>
+
+              <TextInput
+                placeholder="Title"
+                placeholderTextColor="rgba(255,255,255,0.5)"
+                value={title}
+                onChangeText={setTitle}
+                style={styles.input}
+              />
+
+              <TextInput
+                placeholder="Share your thoughts..."
+                placeholderTextColor="rgba(255,255,255,0.5)"
+                value={body}
+                onChangeText={setBody}
+                multiline
+                style={[styles.input, { height: 200, textAlignVertical: 'top' }]}
+              />
+
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 32 }}>
+                <TouchableOpacity
+                  onPress={() => {
+                    setIsCreateModalVisible(false);
+                    setTitle('');
+                    setBody('');
+                  }}
+                >
+                  <Text style={{ color: '#f43f5e', fontSize: 18 }}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity onPress={createPost}>
+                  <Text style={{ color: '#10b981', fontSize: 18 }}>Post</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+        </KeyboardAvoidingView>
+          </SafeAreaView>
+      </Modal>
+
+      {/* Comments Modal */}
+      <Modal visible={!!selectedPostId} animationType="slide">
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#020617' }}>
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => {
+                setSelectedPostId(null);
+                setComments([]);
+                setNewComment('');
+              }}
+            >
+              <Text style={{ color: '#FFF', fontSize: 18 }}>Back</Text>
+            </TouchableOpacity>
+            <Text variant="h2" style={{ color: '#FFF' }}>
+              Comments
+            </Text>
+            <View style={{ width: 50 }} />
+          </View>
+
+          <FlatList
+            data={comments}
+            keyExtractor={item => item.id}
+            renderItem={({ item: comment }) => (
+              <View style={styles.commentCard}>
+                <View style={styles.userInfo}>
+                  <Image
+                    source={{ uri: `https://i.pravatar.cc/150?u=${comment.user_id}` }}
+                    style={styles.avatar}
+                  />
+                  <View>
+                    <Text style={styles.userName}>
+                      {comment.profiles?.display_name || 'Anonymous'}
+                    </Text>
+                    <Text style={styles.timestamp}>{formatTime(comment.created_at)}</Text>
+                  </View>
+                </View>
+                <Text style={styles.postBody}>{comment.body}</Text>
+              </View>
+            )}
+            contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 100 }}
+          />
+
+          <View style={styles.commentInputContainer}>
+            <TextInput
+              value={newComment}
+              onChangeText={setNewComment}
+              placeholder="Add a comment..."
+              placeholderTextColor="rgba(255,255,255,0.5)"
+              style={styles.commentInput}
+            />
+            <TouchableOpacity onPress={addComment} disabled={!newComment.trim()}>
+              <Text
+                style={{
+                  color: newComment.trim() ? '#10b981' : 'rgba(255,255,255,0.4)',
+                  fontSize: 16,
+                  marginLeft: 12,
+                }}
+              >
+                Send
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 , backgroundColor: '#020617'},
+  container: { flex: 1, backgroundColor: '#020617' },
   safeArea: { flex: 1 },
-  
-  // Header
+
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -212,24 +587,16 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     marginBottom: 24,
   },
-  screenTitle: {
-    fontSize: 32,
-    fontFamily: 'Serif-Bold',
-    color: '#FFF',
-  },
   rulesLink: {
     fontSize: 16,
-    fontFamily: 'Sans-Regular',
     color: 'rgba(255,255,255,0.6)',
   },
 
-  // Tabs
   tabContainer: {
     flexDirection: 'row',
     paddingHorizontal: 24,
     marginBottom: 24,
     gap: 16,
-    alignItems: 'center',
   },
   tab: {
     paddingVertical: 8,
@@ -241,27 +608,24 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 16,
-    fontFamily: 'Sans-Medium',
     color: 'rgba(255,255,255,0.6)',
   },
   activeTabText: {
-    color: '#020617', // Dark color for contrast on white
+    color: '#020617',
   },
 
-  // List
   listContent: {
     paddingHorizontal: 24,
-    paddingBottom: 100, // Space for FAB
-    gap: 16,
+    paddingBottom: 100,
   },
 
-  // Forum Card Style
   card: {
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
+    marginBottom: 16,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -277,28 +641,23 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   userName: {
     color: '#FFF',
     fontSize: 16,
-    fontFamily: 'Sans-SemiBold',
   },
   timestamp: {
     color: 'rgba(255,255,255,0.4)',
     fontSize: 12,
-    fontFamily: 'Sans-Regular',
   },
   postTitle: {
     color: '#FFF',
     fontSize: 18,
-    fontFamily: 'Serif-SemiBold',
     marginBottom: 8,
   },
   postBody: {
     color: 'rgba(255,255,255,0.7)',
     fontSize: 15,
-    fontFamily: 'Sans-Regular',
     lineHeight: 22,
     marginBottom: 16,
   },
@@ -314,10 +673,8 @@ const styles = StyleSheet.create({
   actionText: {
     color: 'rgba(255,255,255,0.6)',
     fontSize: 14,
-    fontFamily: 'Sans-Medium',
   },
 
-  // Friend Card Style
   friendCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -325,21 +682,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.03)',
     padding: 16,
     borderRadius: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.05)',
+    marginBottom: 8,
   },
   friendInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
   },
-  friendAvatarPlaceholder: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
+  friendAvatarContainer: {
+    position: 'relative',
   },
   onlineDot: {
     position: 'absolute',
@@ -348,35 +699,33 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#10b981', // Green
+    backgroundColor: '#10b981',
     borderWidth: 2,
     borderColor: '#020617',
   },
   friendName: {
     color: '#FFF',
     fontSize: 16,
-    fontFamily: 'Sans-Medium',
   },
   friendStatus: {
     color: 'rgba(255,255,255,0.4)',
     fontSize: 12,
   },
   streakBadge: {
-    backgroundColor: 'rgba(245, 158, 11, 0.2)', // Amber tint
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
   },
   streakText: {
-    color: '#f59e0b', // Amber text
+    color: '#f59e0b',
     fontSize: 12,
     fontWeight: 'bold',
   },
 
-  // FAB
   fab: {
     position: 'absolute',
-    bottom: 32,
+    bottom: 96,
     alignSelf: 'center',
     width: 64,
     height: 64,
@@ -390,14 +739,45 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
   },
-  
-  // Empty State
+
   emptyState: {
     padding: 40,
     alignItems: 'center',
   },
   emptyText: {
     color: 'rgba(255,255,255,0.3)',
-    fontFamily: 'Sans-Regular',
-  }
+  },
+
+  input: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    color: '#FFF',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    marginBottom: 16,
+  },
+
+  commentCard: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+  },
+  commentInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  commentInput: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    color: '#FFF',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+  },
 });

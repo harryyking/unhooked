@@ -95,12 +95,10 @@ export default function GoogleSignInButton() {
         backgroundColor: '#ffffff',
         borderWidth: 1,
         borderColor: '#dbdbdb',
-        borderRadius: 4,
-        paddingVertical: 10,
+        borderRadius: 12,
+        paddingVertical: 12,
         paddingHorizontal: 15,
         justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.1,
         shadowRadius: 2,
         elevation: 2, // For Android shadow
@@ -115,7 +113,7 @@ export default function GoogleSignInButton() {
         style={{
           fontSize: 16,
           color: '#757575',
-          fontFamily: 'Roboto-Regular', // Assuming Roboto is available; install via expo-google-fonts or similar if needed
+          fontFamily: 'Sans-Regular', // Assuming Roboto is available; install via expo-google-fonts or similar if needed
           fontWeight: '500',
         }}
       >
